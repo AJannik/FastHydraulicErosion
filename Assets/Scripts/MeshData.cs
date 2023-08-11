@@ -54,6 +54,30 @@ public struct MeshData
             }
         }
     }
+    
+    // ReSharper disable Unity.PerformanceAnalysis
+    public void UpdateHeights(float[,] heightValues, float newHeightScale)
+    {
+        if (heightValues.GetLength(0) != xSize || heightValues.GetLength(1) != zSize)
+        {
+            Debug.LogError("UpdateHeights(): New heights are not the same Mesh size as the current Terrain!");
+            return;
+        }
+        
+        heightScale = newHeightScale;
+        int vertexIndex = 0;
+
+        for (int y = 0; y < zSize; y++)
+        {
+            for (int x = 0; x < xSize; x++)
+            {
+                vertices[vertexIndex] = new Vector3(x, heightValues[x, y] * heightScale, y);
+                uvs[vertexIndex] = new Vector2(1f - x / (float)xSize, 1f - y / (float)zSize);
+                
+                vertexIndex++;
+            }
+        }
+    }
 
     public Mesh CreateMesh()
     {

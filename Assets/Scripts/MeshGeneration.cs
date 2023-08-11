@@ -9,7 +9,24 @@ public class MeshGeneration : MonoBehaviour
 
     private MeshData meshData;
     
-    void Start()
+    private void Start()
+    {
+        float[,] values = SampleHeightMap();
+        meshData = new MeshData(values, heightMultiplier);
+        meshFilter.mesh = meshData.CreateMesh();
+    }
+
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            float[,] values = SampleHeightMap();
+            meshData.UpdateHeights(values, heightMultiplier);
+            meshFilter.mesh = meshData.CreateMesh();
+        }
+    }
+
+    private float[,] SampleHeightMap()
     {
         Color[] pixels = heightMap.GetPixels();
         int width = heightMap.width;
@@ -24,26 +41,6 @@ public class MeshGeneration : MonoBehaviour
             }
         }
 
-        meshData = new MeshData(values, heightMultiplier);
-        meshFilter.mesh = meshData.CreateMesh();
-    }
-
-    void Update()
-    {
-        
-    }
-
-    private void UpdateHeights(float[,] heightValues)
-    {
-        int width = heightValues.GetLength(0);
-        int height = heightValues.GetLength(1);
-
-        for (int i = 0; i < width; i++)
-        {
-            for (int j = 0; j < height; j++)
-            {
-
-            }
-        }
+        return values;
     }
 }
