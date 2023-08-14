@@ -6,7 +6,8 @@ public class MeshGeneration : MonoBehaviour
     public MeshFilter meshFilter;
     public float heightMultiplier = 1f;
     public MeshRenderer meshRenderer;
-
+    public Shader shader;
+    
     private MeshData meshData;
     
     private void Start()
@@ -21,8 +22,7 @@ public class MeshGeneration : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Space))
         {
             float[,] values = SampleHeightMap();
-            meshData.UpdateHeights(values, heightMultiplier);
-            meshFilter.mesh = meshData.CreateMesh();
+            meshFilter.mesh.SetVertices(meshData.UpdateHeights(values, heightMultiplier));
         }
     }
 
