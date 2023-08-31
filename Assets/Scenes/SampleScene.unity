@@ -454,6 +454,7 @@ GameObject:
   - component: {fileID: 1366781802}
   - component: {fileID: 1366781805}
   - component: {fileID: 1366781804}
+  - component: {fileID: 1366781806}
   m_Layer: 0
   m_Name: TerrainMesh
   m_TagString: Untagged
@@ -477,7 +478,6 @@ MonoBehaviour:
   meshFilter: {fileID: 1366781805}
   heightMultiplier: 200
   meshRenderer: {fileID: 1366781804}
-  shader: {fileID: 0}
 --- !u!4 &1366781803
 Transform:
   m_ObjectHideFlags: 0
@@ -543,6 +543,21 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1366781801}
   m_Mesh: {fileID: 0}
+--- !u!114 &1366781806
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1366781801}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e134dd575324a6aa9a9c2bb3b2a4202, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  erosionShader: {fileID: 7200000, guid: 0524d25f3503ce74aa45986219a0093c, type: 3}
+  heightMap: {fileID: 2800000, guid: 52fbccfae123ee14382b42e03792a13f, type: 3}
+  meshGeneration: {fileID: 1366781802}
 --- !u!850595691 &1883251502
 LightingSettings:
   m_ObjectHideFlags: 0
