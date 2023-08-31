@@ -5,25 +5,17 @@ public class MeshGeneration : MonoBehaviour
     public Texture2D heightMap;
     public MeshFilter meshFilter;
     public float heightMultiplier = 1f;
-    public MeshRenderer meshRenderer;
+    [SerializeField] private MeshRenderer meshRenderer;
 
     private MeshData meshData;
+    
+    private readonly int heightMapTextureProp = Shader.PropertyToID("_HeightMap");
     
     private void Start()
     {
         float[,] values = SampleHeightMap();
         meshData = new MeshData(values, heightMultiplier);
         meshFilter.mesh = meshData.CreateMesh();
-    }
-
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            float[,] values = SampleHeightMap();
-            meshData.UpdateHeights(values, heightMultiplier);
-            meshFilter.mesh = meshData.CreateMesh();
-        }
     }
 
     private float[,] SampleHeightMap()
@@ -42,5 +34,10 @@ public class MeshGeneration : MonoBehaviour
         }
 
         return values;
+    }
+
+    public void UpdateHeightMap(RenderTexture hMap)
+    {
+        meshRenderer.materials[0].SetTexture(heightMapTextureProp, hMap);
     }
 }

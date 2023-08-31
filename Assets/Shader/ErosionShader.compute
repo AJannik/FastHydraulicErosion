@@ -1,0 +1,14 @@
+#pragma kernel CSMain
+#include <UnityCG.cginc>
+
+RWTexture2D<float4> heightMap;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < 1000 && id.x > 600 && id.y < 1000 && id.y > 600)
+    {
+        float f = 0.5 * sin(id.x * 0.01 + id.y * 0.01 + _Time.y) + 0.5;
+        heightMap[id.xy] = float4(f, f, f, 1);
+    }    
+}

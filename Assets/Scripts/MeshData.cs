@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -38,7 +39,7 @@ public struct MeshData
         {
             for (int x = 0; x < xSize; x++)
             {
-                vertices[vertexIndex] = new Vector3(x, heightValues[x, y] * heightScale, y);
+                vertices[vertexIndex] = new Vector3(x, 0f, y); //heightValues[x, y] * heightScale
                 uvs[vertexIndex] = new Vector2(1f - x / (float)xSize, 1f - y / (float)zSize);
                 
                 if (x < xSize - 1 && y < zSize - 1)
@@ -56,12 +57,11 @@ public struct MeshData
     }
     
     // ReSharper disable Unity.PerformanceAnalysis
-    public void UpdateHeights(float[,] heightValues, float newHeightScale)
+    public Vector3[] UpdateHeights(float[,] heightValues, float newHeightScale)
     {
         if (heightValues.GetLength(0) != xSize || heightValues.GetLength(1) != zSize)
         {
-            Debug.LogError("UpdateHeights(): New heights are not the same Mesh size as the current Terrain!");
-            return;
+            throw new Exception("UpdateHeights(): New heights are not the same Mesh size as the current Terrain!");
         }
         
         heightScale = newHeightScale;
@@ -77,6 +77,8 @@ public struct MeshData
                 vertexIndex++;
             }
         }
+
+        return vertices;
     }
 
     public Mesh CreateMesh()

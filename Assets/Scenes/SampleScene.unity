@@ -135,6 +135,7 @@ GameObject:
   - component: {fileID: 330585545}
   - component: {fileID: 330585544}
   - component: {fileID: 330585547}
+  - component: {fileID: 330585548}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -260,6 +261,20 @@ MonoBehaviour:
     mipBias: 0
     varianceClampScale: 0.9
     contrastAdaptiveSharpening: 0
+--- !u!114 &330585548
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 729f35ac0767a8c4d88d6f527df84065, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveSpeed: 100
+  rotationSpeed: 5
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -439,6 +454,7 @@ GameObject:
   - component: {fileID: 1366781802}
   - component: {fileID: 1366781805}
   - component: {fileID: 1366781804}
+  - component: {fileID: 1366781806}
   m_Layer: 0
   m_Name: TerrainMesh
   m_TagString: Untagged
@@ -497,7 +513,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 0fdee8ce2ad454d4e94f267b5a113982, type: 2}
+  - {fileID: 2100000, guid: 535f85e0cacf9f6458d8b06b8c9fc63f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -527,6 +543,21 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1366781801}
   m_Mesh: {fileID: 0}
+--- !u!114 &1366781806
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1366781801}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e134dd575324a6aa9a9c2bb3b2a4202, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  erosionShader: {fileID: 7200000, guid: 0524d25f3503ce74aa45986219a0093c, type: 3}
+  heightMap: {fileID: 2800000, guid: 52fbccfae123ee14382b42e03792a13f, type: 3}
+  meshGeneration: {fileID: 1366781802}
 --- !u!850595691 &1883251502
 LightingSettings:
   m_ObjectHideFlags: 0
