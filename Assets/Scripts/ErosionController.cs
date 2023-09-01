@@ -7,26 +7,35 @@ public class ErosionController : MonoBehaviour
     [SerializeField] private MeshGeneration meshGeneration;
     
     private int erosionKernel;
-    private RenderTexture computeHeightMap;
+    private RenderTexture computeDataMap1; // r = heightMap, g = suspended sediment, b = water level
+    private RenderTexture computeDataMap2; // pipe model flux field
+    private RenderTexture computeDataMap3; // velocity field
     
-    private readonly int heightMapShaderProp = Shader.PropertyToID("heightMap");
+    private readonly int dataMap1ShaderProp = Shader.PropertyToID("dataMap1");
+    private readonly int dataMap2ShaderProp = Shader.PropertyToID("dataMap2");
+    private readonly int dataMap3ShaderProp = Shader.PropertyToID("dataMap3");
     
     private void Start()
     {
         erosionKernel = erosionShader.FindKernel("CSMain");
-        computeHeightMap = new RenderTexture(heightMap.width, heightMap.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
-        Graphics.Blit(heightMap, computeHeightMap);
-        erosionShader.SetTexture(erosionKernel, heightMapShaderProp, computeHeightMap);
-        meshGeneration.UpdateHeightMap(computeHeightMap);
+        computeDataMap1 = new RenderTexture(heightMap.width, heightMap.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
+        computeDataMap2 = new RenderTexture(heightMap.width, heightMap.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
+        computeDataMap3 = new RenderTexture(heightMap.width, heightMap.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
+        Graphics.Blit(heightMap, computeDataMap1);
+        
+        erosionShader.SetTexture(erosionKernel, dataMap1ShaderProp, computeDataMap1);
+        erosionShader.SetTexture(erosionKernel, dataMap2ShaderProp, computeDataMap2);
+        erosionShader.SetTexture(erosionKernel, dataMap3ShaderProp, computeDataMap3);
+        meshGeneration.UpdateHeightMap(computeDataMap1);
     }
 
     private void FixedUpdate()
     {
-        erosionShader.Dispatch(erosionKernel, computeHeightMap.width / 8, computeHeightMap.height / 8, 1);
+        erosionShader.Dispatch(erosionKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
     }
 
     private void OnDestroy()
     {
-        computeHeightMap.Release();
+        computeDataMap1.Release();
     }
 }

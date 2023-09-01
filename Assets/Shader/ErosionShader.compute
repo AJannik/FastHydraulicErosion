@@ -1,14 +1,57 @@
-#pragma kernel CSMain
+#pragma kernel FlowSimulation
+#pragma kernel WaterInc
+#pragma kernel Init
 #include <UnityCG.cginc>
 
-RWTexture2D<float4> heightMap;
+RWTexture2D<float4> dataMap1; // r = heightMap, g = suspended sediment, b = water level
+RWTexture2D<float4> dataMap2; // pipe model flux field | r = left, g = top, b = right, a = bottom
+RWTexture2D<float4> dataMap3; // velocity field
+
+float2 waterSource = float2(300, 400);
+float simulationTimeStep;
+float waterSourceStrength;
+float pipeCrossSection;
+float lengthPipe = 1;
+float gravity = 9.81;
+
+float deltaHeight(uint2 id, uint2 offset)
+{
+    return dataMap1[id].r + dataMap1[id].b - dataMap1[id + offset].r - dataMap1[id + offset].b;
+}
 
 [numthreads(8,8,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+void Init (uint3 id : SV_DispatchThreadID)
 {
-    if (id.x < 1000 && id.x > 600 && id.y < 1000 && id.y > 600)
+    dataMap1[id.xy].gb = 0;
+}
+
+[numthreads(8,8,1)]
+void FlowSimulation (uint3 id : SV_DispatchThreadID)
+{
+    uint2 offset = uint2(-1, 0);
+    float fluxL = max(0, dataMap2[id.xy + offset] + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id, offset) / lengthPipe));
+    offset = uint2(1, 0);
+    float fluxR = max(0, dataMap2[id.xy + offset] + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id, offset) / lengthPipe));
+    offset = uint2(0, -1);
+    float fluxT = max(0, dataMap2[id.xy + offset] + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id, offset) / lengthPipe));
+    offset = uint2(0, 1);
+    float fluxB = max(0, dataMap2[id.xy + offset] + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id, offset) / lengthPipe));
+
+    float k = min(1, (dataMap1[id.xy].b * 1 * 1) / ((fluxL + fluxR + fluxB + fluxT) * simulationTimeStep));
+
+    dataMap2[id.xy].r = k * fluxL;
+    dataMap2[id.xy].g = k * fluxT;
+    dataMap2[id.xy].b = k * fluxR;
+    dataMap2[id.xy].a = k * fluxB;
+}
+
+[numthreads(8,8,1)]
+void WaterInc (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: add modifiable water sources
+    // TODO: add rain water distribution
+    if (id.x == waterSource.x && id.y == waterSource.y)
     {
-        float f = 0.5 * sin(id.x * 0.01 + id.y * 0.01 + _Time.y) + 0.5;
-        heightMap[id.xy] = float4(f, f, f, 1);
-    }    
+        dataMap1[id.xy].b += simulationTimeStep * waterSourceStrength;
+    }
 }
