@@ -12,12 +12,12 @@ public class ErosionController : MonoBehaviour
     private RenderTexture computeDataMap3; // velocity field
     
     private readonly int dataMap1ShaderProp = Shader.PropertyToID("dataMap1");
-    private readonly int dataMap2ShaderProp = Shader.PropertyToID("dataMap2");
-    private readonly int dataMap3ShaderProp = Shader.PropertyToID("dataMap3");
+    private readonly int dataMap2ShaderProp = Shader.PropertyToID("fluxMap");
+    private readonly int dataMap3ShaderProp = Shader.PropertyToID("velocityField");
     
     private void Start()
     {
-        erosionKernel = erosionShader.FindKernel("CSMain");
+        erosionKernel = erosionShader.FindKernel("CSMain"); // TODO
         computeDataMap1 = new RenderTexture(heightMap.width, heightMap.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
         computeDataMap2 = new RenderTexture(heightMap.width, heightMap.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
         computeDataMap3 = new RenderTexture(heightMap.width, heightMap.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
@@ -37,5 +37,7 @@ public class ErosionController : MonoBehaviour
     private void OnDestroy()
     {
         computeDataMap1.Release();
+        computeDataMap2.Release();
+        computeDataMap3.Release();
     }
 }
