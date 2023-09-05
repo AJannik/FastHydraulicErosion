@@ -30,13 +30,17 @@ public class ErosionController : MonoBehaviour
         erosionShader.SetTexture(erosionKernel, dataMap1ShaderProp, computeDataMap1);
         erosionShader.SetTexture(erosionKernel, fluxMapShaderProp, computeFluxMap);
         erosionShader.SetTexture(erosionKernel, velocityFieldShaderProp, computeVelocityField);
-        erosionShader.SetFloat("waterSourceStrength", 1f);
-        erosionShader.SetFloat("pipeCrossSection", 1f);
+        erosionShader.SetFloat("waterSourceStrength", 0.1f);
+        erosionShader.SetFloat("pipeCrossSection", 0.05f);
         erosionShader.SetFloat("lengthPipe", 1f);
         erosionShader.SetFloat("gravity", 9.81f);
         erosionShader.SetFloat("evaporationConst", 0.1f);
         meshGeneration.UpdateHeightMap(computeDataMap1);
-        debugMesh.materials[0].mainTexture = computeFluxMap;
+
+        if (debugMesh)
+        {
+            debugMesh.materials[0].mainTexture = computeFluxMap;
+        }
         
         erosionShader.Dispatch(initKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
     }

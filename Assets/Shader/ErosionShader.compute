@@ -14,13 +14,21 @@ float lengthPipe = 1.0;
 float gravity = 9.81;
 float evaporationConst = 0.1;
 
-float deltaHeight(uint2 id, uint2 offset)
+float deltaHeight(uint2 id, int2 offset)
 {
-    return dataMap1[id].r + dataMap1[id].b - dataMap1[id + offset].r - dataMap1[id + offset].b;
+    // TODO: use waterDelta1 instead of dataMap1.b
+    if ((int)id.x + offset.x < 0 || id.x + offset.x >= dimensions.x || (int)id.y + offset.y < 0 || id.y + offset.y >= dimensions.y)
+    {
+        return dataMap1[id.xy].r + dataMap1[id.xy].b;
+    }
+    
+    return dataMap1[id.xy].r + dataMap1[id.xy].b - dataMap1[id.xy + offset].r - dataMap1[id.xy + offset].b;
 }
 
 float WaterInc(uint2 id)
 {
+    // TODO: each Step to be in synchronous kernels
+    
     return dataMap1[id.xy].b + simulationTimeStep * waterSourceStrength;
     // TODO: add modifiable water sources
     // TODO: add rain water distribution
@@ -33,9 +41,9 @@ float WaterInc(uint2 id)
     return 0;
 }
 
-void UpdateFluxField(uint3 id)
+void UpdateFluxField(uint3 id, float waterDelta1)
 {
-    uint2 offset = uint2(-1, 0);
+    int2 offset = int2(-1, 0);
     float fluxL = 0;
     float fluxR = 0;
     float fluxT = 0;
@@ -43,30 +51,30 @@ void UpdateFluxField(uint3 id)
     
     if (id.x > 0)
     {
-        fluxL = max(0, fluxMap[id.xy + offset].r + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id, offset) / lengthPipe));
+        fluxL = max(0.0, fluxMap[id.xy + offset].r + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, offset) / lengthPipe));
     }
     
-    offset = uint2(1, 0);
-    if (id.x < dimensions.x)
+    offset = int2(1, 0);
+    if (id.x < dimensions.x - 1)
     {
-        fluxR = max(0, fluxMap[id.xy + offset].b + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id, offset) / lengthPipe));
+        fluxR = max(0.0, fluxMap[id.xy + offset].b + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, offset) / lengthPipe));
     }
     
-    offset = uint2(0, -1);
+    offset = int2(0, -1);
     if (id.y > 0)
     {
-        fluxT = max(0, fluxMap[id.xy + offset].g + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id, offset) / lengthPipe));
+        fluxT = max(0.0, fluxMap[id.xy + offset].g + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, offset) / lengthPipe));
     }
      
-    offset = uint2(0, 1);
-    if (id.y < dimensions.y)
+    offset = int2(0, 1);
+    if (id.y < dimensions.y - 1)
     {
-        fluxB = max(0, fluxMap[id.xy + offset].a + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id, offset) / lengthPipe));
+        fluxB = max(0.0, fluxMap[id.xy + offset].a + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, offset) / lengthPipe));
     }
 
-    float k = min(1, (dataMap1[id.xy].b * 1 * 1) / ((fluxL + fluxR + fluxB + fluxT) * simulationTimeStep));
+    float k = min(1.0, (waterDelta1 * lengthPipe) / ((fluxL + fluxR + fluxB + fluxT) * simulationTimeStep));
 
-    fluxMap[id.xy] = k * float4(fluxL, fluxT, fluxR, fluxB);
+    fluxMap[id.xy] = float4(k * fluxL, k * fluxT, k * fluxR, k * fluxB);
 }
 
 [numthreads(8,8,1)]
@@ -83,36 +91,36 @@ void FlowSimulation (uint3 id : SV_DispatchThreadID)
     float waterDelta1 = WaterInc(id.xy);
 
     // Flux field
-    UpdateFluxField(id);
+    UpdateFluxField(id, waterDelta1);
 
     // Water height
     float fluxR = 0;
     if (id.x > 0)
     {
-        fluxR = fluxMap[id.xy + uint2(-1, 0)].b;
+        fluxR = fluxMap[id.xy + int2(-1, 0)].b;
     }
 
     float fluxL = 0;
-    if (id.x < dimensions.x)
+    if (id.x < dimensions.x - 1)
     {
-        fluxL = fluxMap[id.xy + uint2(1, 0)].r;
+        fluxL = fluxMap[id.xy + int2(1, 0)].r;
     }
 
     float fluxT = 0;
     if (id.y > 0)
     {
-        fluxT = fluxMap[id.xy + uint2(0, -1)].g;
+        fluxT = fluxMap[id.xy + int2(0, -1)].g;
     }
 
     float fluxB = 0;
-    if (id.y < dimensions.y)
+    if (id.y < dimensions.y - 1)
     {
-        fluxB = fluxMap[id.xy + uint2(0, 1)].a;
+        fluxB = fluxMap[id.xy + int2(0, 1)].a;
     }
     
-    float deltaVolume = simulationTimeStep *
+    float deltaVolume = simulationTimeStep * (
         (fluxL + fluxT + fluxR + fluxB)
-        - (fluxMap[id.xy].r + fluxMap[id.xy].g + fluxMap[id.xy].b + fluxMap[id.xy].a);
+        - (fluxMap[id.xy].r + fluxMap[id.xy].g + fluxMap[id.xy].b + fluxMap[id.xy].a));
 
     float waterDelta2 = waterDelta1 + deltaVolume / lengthPipe;
 
@@ -126,5 +134,6 @@ void FlowSimulation (uint3 id : SV_DispatchThreadID)
     // Erosion and Deposition
 
     // Evaporation
+    //waterDelta2 * (1 - evaporationConst * simulationTimeStep)
     dataMap1[id.xy] = float4(dataMap1[id.xy].rg, waterDelta2 * (1 - evaporationConst * simulationTimeStep), 1);
 }
