@@ -1,9 +1,12 @@
-#pragma kernel FlowSimulation
 #pragma kernel Init
+#pragma kernel WaterInc
+#pragma kernel FlowSimulation
+#pragma kernel Evaporation
 
 RWTexture2D<float4> dataMap1; // r = heightMap, g = suspended sediment, b = water level
 RWTexture2D<float4> fluxMap; // pipe model flux field | r = left, g = top, b = right, a = bottom
 RWTexture2D<float4> velocityField; // velocity field
+RWTexture2D<float4> waterDeltaMap; // r = delta1, g = delta2
 
 uint2 waterSource = uint2(300, 400);
 uint2 dimensions = uint2(2048, 2048);
@@ -16,32 +19,15 @@ float evaporationConst = 0.1;
 
 float deltaHeight(uint2 id, int2 offset)
 {
-    // TODO: use waterDelta1 instead of dataMap1.b
     if ((int)id.x + offset.x < 0 || id.x + offset.x >= dimensions.x || (int)id.y + offset.y < 0 || id.y + offset.y >= dimensions.y)
     {
-        return dataMap1[id.xy].r + dataMap1[id.xy].b;
+        return dataMap1[id.xy].r + waterDeltaMap[id.xy].r;
     }
     
-    return dataMap1[id.xy].r + dataMap1[id.xy].b - dataMap1[id.xy + offset].r - dataMap1[id.xy + offset].b;
+    return dataMap1[id.xy].r + waterDeltaMap[id.xy].r - dataMap1[id.xy + offset].r - waterDeltaMap[id.xy + offset].r;
 }
 
-float WaterInc(uint2 id)
-{
-    // TODO: each Step to be in synchronous kernels
-    
-    return dataMap1[id.xy].b + simulationTimeStep * waterSourceStrength;
-    // TODO: add modifiable water sources
-    // TODO: add rain water distribution
-    if (id.x == waterSource.x && id.y == waterSource.y)
-    {
-        
-    }
-
-    
-    return 0;
-}
-
-void UpdateFluxField(uint3 id, float waterDelta1)
+void UpdateFluxField(uint3 id)
 {
     int2 offset = int2(-1, 0);
     float fluxL = 0;
@@ -72,7 +58,7 @@ void UpdateFluxField(uint3 id, float waterDelta1)
         fluxB = max(0.0, fluxMap[id.xy + offset].a + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, offset) / lengthPipe));
     }
 
-    float k = min(1.0, (waterDelta1 * lengthPipe) / ((fluxL + fluxR + fluxB + fluxT) * simulationTimeStep));
+    float k = min(1.0, (waterDeltaMap[id.xy].r * lengthPipe) / ((fluxL + fluxR + fluxB + fluxT) * simulationTimeStep));
 
     fluxMap[id.xy] = float4(k * fluxL, k * fluxT, k * fluxR, k * fluxB);
 }
@@ -81,17 +67,30 @@ void UpdateFluxField(uint3 id, float waterDelta1)
 void Init (uint3 id : SV_DispatchThreadID)
 {
     dataMap1[id.xy] = float4(dataMap1[id.xy].r, 0, 0, 1);
+    waterDeltaMap[id.xy] = float4(0, 0, 0, 0);
+}
+
+[numthreads(8,8,1)]
+void WaterInc (uint3 id : SV_DispatchThreadID)
+{
+    float waterDelta1 = dataMap1[id.xy].b + simulationTimeStep * waterSourceStrength;
+    waterDeltaMap[id.xy] = float4(waterDelta1, waterDeltaMap[id.xy].gba);
+    
+    // TODO: add modifiable water sources
+    // TODO: add rain water distribution
+    if (id.x == waterSource.x && id.y == waterSource.y)
+    {
+        
+    }
 }
 
 [numthreads(8,8,1)]
 void FlowSimulation (uint3 id : SV_DispatchThreadID)
 {
     // TODO: consider and fix border cells with neighbours outside the grid
-    
-    float waterDelta1 = WaterInc(id.xy);
 
     // Flux field
-    UpdateFluxField(id, waterDelta1);
+    UpdateFluxField(id);
 
     // Water height
     float fluxR = 0;
@@ -122,18 +121,21 @@ void FlowSimulation (uint3 id : SV_DispatchThreadID)
         (fluxL + fluxT + fluxR + fluxB)
         - (fluxMap[id.xy].r + fluxMap[id.xy].g + fluxMap[id.xy].b + fluxMap[id.xy].a));
 
-    float waterDelta2 = waterDelta1 + deltaVolume / lengthPipe;
+    float waterDelta2 = waterDeltaMap[id.xy].r + deltaVolume / lengthPipe;
+    waterDeltaMap[id.xy] = float4(waterDeltaMap[id.xy].r, waterDelta2, waterDeltaMap[id.xy].ba);
 
     // Velocity field
-    float averageWaterDelta = (waterDelta1 + waterDelta2) / 2;
+    float averageWaterDelta = (waterDeltaMap[id.xy].r + waterDelta2) / 2;
     float deltaFlowX = (fluxR - fluxMap[id.xy].r + fluxMap[id.xy].b - fluxL) / 2;
     float deltaFlowY = (fluxT - fluxMap[id.xy].a + fluxMap[id.xy].g - fluxB) / 2;
     
     velocityField[id.xy] =  float4(deltaFlowX / (averageWaterDelta * lengthPipe), deltaFlowY / (averageWaterDelta * lengthPipe), 0, 1);
+}
 
-    // Erosion and Deposition
-
+[numthreads(8,8,1)]
+void Evaporation (uint3 id : SV_DispatchThreadID)
+{
     // Evaporation
     //waterDelta2 * (1 - evaporationConst * simulationTimeStep)
-    dataMap1[id.xy] = float4(dataMap1[id.xy].rg, waterDelta2 * (1 - evaporationConst * simulationTimeStep), 1);
+    dataMap1[id.xy] = float4(dataMap1[id.xy].rg, waterDeltaMap[id.xy].g * (1 - evaporationConst * simulationTimeStep), 1);
 }
