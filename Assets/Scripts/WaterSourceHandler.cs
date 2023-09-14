@@ -7,6 +7,6 @@ public class WaterSourceHandler : MonoBehaviour
 
     public WaterSourceStruct GetData()
     {
-        return new WaterSourceStruct(strength, radius, transform.position);
+        return new WaterSourceStruct(strength, radius, new Vector2(transform.position.x, transform.position.z));
     }
 }

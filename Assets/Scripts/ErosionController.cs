@@ -30,10 +30,10 @@ public class ErosionController : MonoBehaviour
         waterIncKernel = erosionShader.FindKernel("WaterInc");
         flowSimulationKernel = erosionShader.FindKernel("FlowSimulation");
         evaporationKernel = erosionShader.FindKernel("Evaporation");
-        computeDataMap1 = new RenderTexture(heightMap.width, heightMap.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
-        computeFluxMap = new RenderTexture(heightMap.width, heightMap.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
-        computeVelocityField = new RenderTexture(heightMap.width, heightMap.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
-        computeWaterDeltaMap = new RenderTexture(heightMap.width, heightMap.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
+        computeDataMap1 = new RenderTexture(heightMap.width, heightMap.height, 32, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
+        computeFluxMap = new RenderTexture(heightMap.width, heightMap.height, 32, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
+        computeVelocityField = new RenderTexture(heightMap.width, heightMap.height, 32, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
+        computeWaterDeltaMap = new RenderTexture(heightMap.width, heightMap.height, 32, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
         Graphics.Blit(heightMap, computeDataMap1);
         
         WaterSourceStruct[] waterSources = new[] { waterSourceHandler.GetData() };
@@ -59,12 +59,12 @@ public class ErosionController : MonoBehaviour
         erosionShader.SetFloat("pipeCrossSection", 0.5f);
         erosionShader.SetFloat("lengthPipe", 1f);
         erosionShader.SetFloat("gravity", 9.81f);
-        erosionShader.SetFloat("evaporationConst", 0.001f);
+        erosionShader.SetFloat("evaporationConst", 0.0f);
         meshGeneration.UpdateHeightMap(computeDataMap1);
 
         if (debugMesh)
         {
-            debugMesh.materials[0].mainTexture = computeFluxMap;
+            debugMesh.materials[0].mainTexture = computeWaterDeltaMap;
         }
         
         erosionShader.Dispatch(initKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
@@ -72,7 +72,7 @@ public class ErosionController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        erosionShader.SetFloat("simulationTimeStep", Time.fixedDeltaTime);
+        erosionShader.SetFloat("simulationTimeStep", 0.005f);
         erosionShader.Dispatch(waterIncKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(flowSimulationKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(evaporationKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);

@@ -50,12 +50,12 @@ void UpdateFluxField(uint3 id)
     
     if (id.y > 0)
     {
-        fluxT = max(0.0, fluxMap[id.xy].g + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(0, -1)) / lengthPipe));
+        fluxT = max(0.0, fluxMap[id.xy].g + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(0, 1)) / lengthPipe));
     }
      
     if (id.y < dimensions.y - 1)
     {
-        fluxB = max(0.0, fluxMap[id.xy].a + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(0, 1)) / lengthPipe));
+        fluxB = max(0.0, fluxMap[id.xy].a + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(0, -1)) / lengthPipe));
     }
 
     float k = min(1.0, (waterDeltaMap[id.xy].r * lengthPipe) / ((fluxL + fluxR + fluxB + fluxT) * simulationTimeStep));
@@ -95,43 +95,43 @@ void WaterInc (uint3 id : SV_DispatchThreadID)
 void FlowSimulation (uint3 id : SV_DispatchThreadID)
 {
     // TODO: consider and fix border cells with neighbours outside the grid
-
-    // TODO: update deform shader
     
     // Flux field
     UpdateFluxField(id);
 
     // inflow flux from neighbours to cell (x, y)
     float flowInR = 0;
-    if (id.x > 0)
+    if (id.x < dimensions.x - 1)
     {
-        flowInR = fluxMap[id.xy + int2(-1, 0)].b;
+        flowInR = fluxMap[id.xy + int2(1, 0)].r;
     }
 
     float flowInL = 0;
-    if (id.x < dimensions.x - 1)
+    if (id.x > 0)
     {
-        flowInL = fluxMap[id.xy + int2(1, 0)].r;
+        flowInL = fluxMap[id.xy + int2(-1, 0)].b;
     }
 
     float flowInT = 0;
     if (id.y > 0)
     {
-        flowInT = fluxMap[id.xy + int2(0, -1)].g;
+        flowInT = fluxMap[id.xy + int2(0, 1)].a;
     }
 
     float flowInB = 0;
     if (id.y < dimensions.y - 1)
     {
-        flowInB = fluxMap[id.xy + int2(0, 1)].a;
+        flowInB = fluxMap[id.xy + int2(0, -1)].g;
     }
     
     float deltaVolume = simulationTimeStep * (
         (flowInL + flowInT + flowInR + flowInB)
         - (fluxMap[id.xy].r + fluxMap[id.xy].g + fluxMap[id.xy].b + fluxMap[id.xy].a));
 
-    float waterDelta2 = waterDeltaMap[id.xy].r + deltaVolume / lengthPipe;
-    waterDeltaMap[id.xy] = float4(waterDeltaMap[id.xy].r, waterDelta2, waterDeltaMap[id.xy].ba);
+    float flowIn = flowInR + flowInB + flowInL + flowInT;
+    float flowOut = fluxMap[id.xy].r + fluxMap[id.xy].g + fluxMap[id.xy].b + fluxMap[id.xy].a;
+    float waterDelta2 = waterDeltaMap[id.xy].r + flowIn * simulationTimeStep / lengthPipe;
+    waterDeltaMap[id.xy] = float4(waterDeltaMap[id.xy].r, waterDelta2, flowIn, waterDeltaMap[id.xy].a);
 
     // Velocity field
     float averageWaterDelta = (waterDeltaMap[id.xy].r + waterDelta2) / lengthPipe;
