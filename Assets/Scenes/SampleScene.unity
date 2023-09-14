@@ -152,7 +152,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 95847b8cbf0143af85e67b4dfe6fc4ec, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  strength: 0.104
+  strength: 0.158
   radius: 97
 --- !u!4 &317713206
 Transform:
