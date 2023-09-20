@@ -4,7 +4,8 @@ public class MeshGeneration : MonoBehaviour
 {
     public Texture2D heightMap;
     public MeshFilter meshFilter;
-    public float heightMultiplier = 1f;
+    [SerializeField] private float heightMultiplier = 1f;
+    [SerializeField, Range(0.1f, 2f)] private float resolution = 1f;
     [SerializeField] private MeshRenderer meshRenderer;
 
     private MeshData meshData;
@@ -14,7 +15,7 @@ public class MeshGeneration : MonoBehaviour
     private void Start()
     {
         float[,] values = SampleHeightMap();
-        meshData = new MeshData(values, heightMultiplier);
+        meshData = new MeshData(values, heightMultiplier, resolution);
         meshFilter.mesh = meshData.CreateMesh();
     }
 
@@ -39,5 +40,10 @@ public class MeshGeneration : MonoBehaviour
     public void UpdateHeightMap(RenderTexture hMap)
     {
         meshRenderer.materials[0].SetTexture(heightMapTextureProp, hMap);
+    }
+
+    public void SetPosition(Vector2 size)
+    {
+        transform.position = new Vector3(size.x, 0, size.y) * resolution;
     }
 }
