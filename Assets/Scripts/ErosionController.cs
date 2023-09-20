@@ -28,7 +28,7 @@ public class ErosionController : MonoBehaviour
     
     private void Start()
     {
-        int size = 100;
+        int size = 128;
         initKernel = erosionShader.FindKernel("Init");
         waterIncKernel = erosionShader.FindKernel("WaterInc");
         updateFluxMapKernel = erosionShader.FindKernel("UpdateFluxMap");
@@ -72,6 +72,9 @@ public class ErosionController : MonoBehaviour
         erosionShader.SetFloat("lengthPipe", 1f);
         erosionShader.SetFloat("gravity", 9.81f);
         erosionShader.SetFloat("evaporationConst", 0.0f);
+        erosionShader.SetInt("dimensionX", size);
+        erosionShader.SetInt("dimensionY", size);
+
         meshGeneration.UpdateHeightMap(computeDataMap1);
         meshGeneration.SetPosition(new Vector2(size, size));
 
@@ -85,7 +88,7 @@ public class ErosionController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        erosionShader.SetFloat("simulationTimeStep", 0.005f);
+        erosionShader.SetFloat("simulationTimeStep", Time.fixedDeltaTime);
         erosionShader.Dispatch(waterIncKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(updateFluxMapKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(updateWaterHeightKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
