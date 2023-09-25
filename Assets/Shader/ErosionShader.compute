@@ -82,12 +82,12 @@ void UpdateFluxMap (uint3 id : SV_DispatchThreadID)
         fluxR = max(0.0, fluxMap[id.xy].b + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(1, 0)) / lengthPipe));
     }
     
-    if (id.y > 0)
+    if (id.y < dimensionY - 1)
     {
         fluxT = max(0.0, fluxMap[id.xy].g + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(0, 1)) / lengthPipe));
     }
      
-    if (id.y < dimensionY - 1)
+    if (id.y > 0)
     {
         fluxB = max(0.0, fluxMap[id.xy].a + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(0, -1)) / lengthPipe));
     }
@@ -116,13 +116,13 @@ void UpdateWaterHeight (uint3 id : SV_DispatchThreadID)
     }
 
     float flowInT = 0;
-    if (id.y > 0)
+    if (id.y < dimensionY - 1)
     {
         flowInT = fluxMap[id.xy + int2(0, 1)].a;
     }
 
     float flowInB = 0;
-    if (id.y < dimensionY - 1)
+    if (id.y > 0 )
     {
         flowInB = fluxMap[id.xy + int2(0, -1)].g;
     }
@@ -133,9 +133,7 @@ void UpdateWaterHeight (uint3 id : SV_DispatchThreadID)
     float deltaVolume = simulationTimeStep * (flowIn - flowOut);
     
     float waterDelta2 = waterDeltaMap[id.xy].r + deltaVolume / lengthPipe;
-    // TODO: FIX Mesh problems
-    waterDelta2 = min(1, waterDelta2);
-    waterDelta2 = max(0, waterDelta2);
+    
     waterDeltaMap[id.xy] = float4(waterDeltaMap[id.xy].r, waterDelta2, waterDeltaMap[id.xy].ba);
 }
 
@@ -155,13 +153,13 @@ void UpdateVelocityField (uint3 id : SV_DispatchThreadID)
     }
 
     float flowInT = 0;
-    if (id.y > 0)
+    if (id.y < dimensionY - 1)
     {
         flowInT = fluxMap[id.xy + int2(0, 1)].a;
     }
 
     float flowInB = 0;
-    if (id.y < dimensionY - 1)
+    if (id.y > 0)
     {
         flowInB = fluxMap[id.xy + int2(0, -1)].g;
     }
@@ -177,6 +175,6 @@ void UpdateVelocityField (uint3 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void Evaporation (uint3 id : SV_DispatchThreadID)
 {
-    // * (1 - evaporationConst * simulationTimeStep)
-    dataMap1[id.xy] = float4(dataMap1[id.xy].rg, waterDeltaMap[id.xy].g, 1);
+    float water = waterDeltaMap[id.xy].g * (1.0 - evaporationConst * simulationTimeStep);
+    dataMap1[id.xy] = float4(dataMap1[id.xy].rg, water, 1);
 }

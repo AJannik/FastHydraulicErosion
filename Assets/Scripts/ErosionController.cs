@@ -71,7 +71,7 @@ public class ErosionController : MonoBehaviour
         erosionShader.SetFloat("pipeCrossSection", 1f);
         erosionShader.SetFloat("lengthPipe", 1f);
         erosionShader.SetFloat("gravity", 9.81f);
-        erosionShader.SetFloat("evaporationConst", 0.0f);
+        erosionShader.SetFloat("evaporationConst", 0.05f);
         erosionShader.SetInt("dimensionX", size);
         erosionShader.SetInt("dimensionY", size);
 
