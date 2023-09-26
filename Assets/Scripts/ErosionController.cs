@@ -14,6 +14,8 @@ public class ErosionController : MonoBehaviour
     private int updateFluxMapKernel;
     private int updateWaterHeightKernel;
     private int updateVelocityFieldKernel;
+    private int erosionKernel;
+    private int transportKernel;
     private int evaporationKernel;
     private RenderTexture computeDataMap1; // r = heightMap, g = suspended sediment, b = water level
     private RenderTexture computeFluxMap; // pipe model flux field
@@ -34,6 +36,8 @@ public class ErosionController : MonoBehaviour
         updateFluxMapKernel = erosionShader.FindKernel("UpdateFluxMap");
         updateWaterHeightKernel = erosionShader.FindKernel("UpdateWaterHeight");
         updateVelocityFieldKernel = erosionShader.FindKernel("UpdateVelocityField");
+        erosionKernel = erosionShader.FindKernel("Erosion");
+        transportKernel = erosionShader.FindKernel("Transportation");
         evaporationKernel = erosionShader.FindKernel("Evaporation");
         
         computeDataMap1 = new RenderTexture(size, size, 32, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
@@ -48,6 +52,8 @@ public class ErosionController : MonoBehaviour
         
         erosionShader.SetTexture(initKernel, dataMap1ShaderProp, computeDataMap1);
         erosionShader.SetTexture(initKernel, waterDeltaMapShaderProp, computeWaterDeltaMap);
+        erosionShader.SetTexture(initKernel, velocityFieldShaderProp, computeVelocityField);
+        erosionShader.SetTexture(initKernel, fluxMapShaderProp, computeFluxMap);
         
         erosionShader.SetTexture(waterIncKernel, waterDeltaMapShaderProp, computeWaterDeltaMap);
         erosionShader.SetTexture(waterIncKernel, dataMap1ShaderProp, computeDataMap1);
@@ -64,6 +70,14 @@ public class ErosionController : MonoBehaviour
         erosionShader.SetTexture(updateVelocityFieldKernel, fluxMapShaderProp, computeFluxMap);
         erosionShader.SetTexture(updateVelocityFieldKernel, velocityFieldShaderProp, computeVelocityField);
         
+        erosionShader.SetTexture(erosionKernel, waterDeltaMapShaderProp, computeWaterDeltaMap);
+        erosionShader.SetTexture(erosionKernel, dataMap1ShaderProp, computeDataMap1);
+        erosionShader.SetTexture(erosionKernel, velocityFieldShaderProp, computeVelocityField);
+        
+        erosionShader.SetTexture(transportKernel, waterDeltaMapShaderProp, computeWaterDeltaMap);
+        erosionShader.SetTexture(transportKernel, dataMap1ShaderProp, computeDataMap1);
+        erosionShader.SetTexture(transportKernel, velocityFieldShaderProp, computeVelocityField);
+        
         erosionShader.SetTexture(evaporationKernel, dataMap1ShaderProp, computeDataMap1);
         erosionShader.SetTexture(evaporationKernel, waterDeltaMapShaderProp, computeWaterDeltaMap);
         
@@ -71,6 +85,10 @@ public class ErosionController : MonoBehaviour
         erosionShader.SetFloat("pipeCrossSection", 1f);
         erosionShader.SetFloat("lengthPipe", 1f);
         erosionShader.SetFloat("gravity", 9.81f);
+        erosionShader.SetFloat("minAlpha", 0.17f);
+        erosionShader.SetFloat("sedimentTransportConst", 0.01f);
+        erosionShader.SetFloat("dissolvingConst", 0.1f);
+        erosionShader.SetFloat("depositionConst", 0.05f);
         erosionShader.SetFloat("evaporationConst", 0.05f);
         erosionShader.SetInt("dimensionX", size);
         erosionShader.SetInt("dimensionY", size);
@@ -80,7 +98,7 @@ public class ErosionController : MonoBehaviour
 
         if (debugMesh)
         {
-            debugMesh.materials[0].mainTexture = computeFluxMap;
+            debugMesh.materials[0].mainTexture = computeVelocityField;
         }
         
         erosionShader.Dispatch(initKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
@@ -93,6 +111,8 @@ public class ErosionController : MonoBehaviour
         erosionShader.Dispatch(updateFluxMapKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(updateWaterHeightKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(updateVelocityFieldKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
+        erosionShader.Dispatch(erosionKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
+        erosionShader.Dispatch(transportKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(evaporationKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
     }
 
