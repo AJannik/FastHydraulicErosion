@@ -114,17 +114,15 @@ void UpdateFluxMap (uint3 id : SV_DispatchThreadID)
     {
         fluxB = max(0.0, fluxMap[id.xy].a + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(0, -1)) / lengthPipe));
     }
-
+    
     float k = min(1.0, (waterDeltaMap[id.xy].r * lengthPipe) / ((fluxL + fluxR + fluxB + fluxT) * simulationTimeStep));
-
-    fluxMap[id.xy] = float4(k * fluxL, k * fluxT, k * fluxR, k * fluxB);
+    k = max(k, 0.0);
+    fluxMap[id.xy] = k * float4(fluxL, fluxT, fluxR, fluxB);
 }
 
 [numthreads(8,8,1)]
 void UpdateWaterHeight (uint3 id : SV_DispatchThreadID)
 {
-    // TODO: consider and fix border cells with neighbours outside the grid
-
     // inflow flux from neighbours to cell (x, y)
     float flowInR = 0;
     if (id.x < dimensionX - 1)
@@ -191,40 +189,59 @@ void UpdateVelocityField (uint3 id : SV_DispatchThreadID)
     float averageWaterDelta = (waterDeltaMap[id.xy].r + waterDeltaMap[id.xy].g) / 2.0;
     float deltaFlowX = (flowInL - fluxMap[id.xy].r + fluxMap[id.xy].b - flowInR) / 2.0;
     float deltaFlowY = (flowInT - fluxMap[id.xy].g + fluxMap[id.xy].a - flowInB) / 2.0;
-    
-    velocityField[id.xy] =  float4(deltaFlowX / (averageWaterDelta * lengthPipe), deltaFlowY / (averageWaterDelta * lengthPipe), 0, 1);
+
+    if (averageWaterDelta == 0.0)
+    {
+        velocityField[id.xy] =  float4(0, 0, 0, 1);
+    }
+    else
+    {
+        velocityField[id.xy] =  float4(deltaFlowX / (averageWaterDelta * lengthPipe), deltaFlowY / (averageWaterDelta * lengthPipe), 0, 1);
+    }
+
+    float deltaX = deltaFlowX;
+
+    velocityField[id.xy] = float4(deltaX, deltaFlowY, 0, 1);
 }
 
 [numthreads(8,8,1)]
 void Erosion (uint3 id : SV_DispatchThreadID)
 {
-    float alpha = acos(GetHeightMapNormal(id.xy).z);
-    float velocity = abs(velocityField[id.xy].r) + abs(velocityField[id.xy].g); // TODO: The fuck is wrong with you
+    float alpha = acos(GetHeightMapNormal(id.xy).y);
+    float velocity = sqrt(velocityField[id.xy].r * velocityField[id.xy].r + velocityField[id.xy].g * velocityField[id.xy].g);
     alpha = max(alpha, minAlpha);
-    velocity = max(velocity, 0.1);
     
     float capacity = sedimentTransportConst * sin(alpha) * velocity;
-    //float capacity = sedimentTransportConst * sin(alpha) * velocity;
 
     float sedimentDelta;
-    float newHeight = dataMap1[id.xy].r;
+    float newHeight;
     if (capacity > dataMap1[id.xy].g)
     {
         // dissolve
-        newHeight = dataMap1[id.xy].r - dissolvingConst * (capacity - dataMap1[id.xy].g);
-        newHeight = max(newHeight, 0.0);
-        //dataMap1[id.xy] = float4(0, dataMap1[id.xy].gba);
-        sedimentDelta = dataMap1[id.xy].g + dissolvingConst * (capacity - dataMap1[id.xy].g);
+        if (dataMap1[id.xy].r > 0.0)
+        {
+            float dissolve = dissolvingConst * simulationTimeStep;
+            dissolve = min(dissolve, capacity - dataMap1[id.xy].g);
+        
+            newHeight = dataMap1[id.xy].r - dissolve;
+            newHeight = max(newHeight, 0.0);
+
+            sedimentDelta = dataMap1[id.xy].g + dissolve;
+        }        
     }
     else
     {
         // deposition
-        newHeight = dataMap1[id.xy].r + depositionConst * (dataMap1[id.xy].g - capacity);
-        dataMap1[id.xy] = float4(dataMap1[id.xy].r, dataMap1[id.xy].gba);
-        sedimentDelta = dataMap1[id.xy].g - depositionConst * (dataMap1[id.xy].g - capacity);
+        float deposit = dissolvingConst * simulationTimeStep;
+        deposit = min(deposit, dataMap1[id.xy].g - capacity);
+        
+        newHeight = dataMap1[id.xy].r + deposit;
+
+        sedimentDelta = dataMap1[id.xy].g - deposit;
     }
 
-    //dataMap1[id.xy] = float4(newHeight, dataMap1[id.xy].gba);
+    dataMap1[id.xy] = float4(newHeight, dataMap1[id.xy].gba);
+
     waterDeltaMap[id.xy] = float4(waterDeltaMap[id.xy].rg, sedimentDelta, waterDeltaMap[id.xy].a);
 }
 
@@ -232,10 +249,10 @@ void Erosion (uint3 id : SV_DispatchThreadID)
 void Transportation (uint3 id : SV_DispatchThreadID)
 {
     // TODO: fix border
-    int x = id.x - velocityField[id.xy].r * simulationTimeStep;
-    int y = id.y - velocityField[id.xy].g * simulationTimeStep;
+    int x = id.x - velocityField[id.xy].r * simulationTimeStep * dimensionX;
+    int y = id.y - velocityField[id.xy].g * simulationTimeStep * dimensionY;
     float sediment = waterDeltaMap[int2(x, y)].b;
-    sediment = max(sediment, 0.0);
+    //sediment = max(sediment, 0.0);
     dataMap1[id.xy] = float4(dataMap1[id.xy].r, sediment, dataMap1[id.xy].ba);
 }
 
@@ -243,6 +260,6 @@ void Transportation (uint3 id : SV_DispatchThreadID)
 void Evaporation (uint3 id : SV_DispatchThreadID)
 {
     float water = waterDeltaMap[id.xy].g * (1.0 - evaporationConst * simulationTimeStep);
-    water = max(water, 0.0);
+
     dataMap1[id.xy] = float4(dataMap1[id.xy].rg, water, 1);
 }
