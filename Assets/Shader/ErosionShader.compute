@@ -7,6 +7,8 @@
 #pragma kernel Transportation
 #pragma kernel Evaporation
 
+#include "UnityCG.cginc"
+
 struct WaterSourceStruct
 {
     float strength;
@@ -60,10 +62,28 @@ float3 GetHeightMapNormal(uint2 id)
     return normalize(normal);
 }
 
+float boxBlur(uint3 id)
+{
+    float blurSum = 0;
+
+    for (int xOffset = -1; xOffset <= 1; xOffset++)
+    {
+        for (int yOffset = -1; yOffset <= 1; yOffset++)
+        {
+            if((int)id.x + xOffset >= 0 && id.x + xOffset < dimensionX && (int)id.y + yOffset >= 0 && id.y + yOffset < dimensionY)
+            {
+                blurSum += dataMap1[int2(id.x + xOffset, id.y + yOffset)].r;
+            }
+        }
+    }
+
+    return  blurSum /= 9.0;
+}
+
 [numthreads(8,8,1)]
 void Init (uint3 id : SV_DispatchThreadID)
 {
-    dataMap1[id.xy] = float4(dataMap1[id.xy].r, 0, 0, 1);
+    dataMap1[id.xy] = float4(boxBlur(id), 0, 0, 1);
     waterDeltaMap[id.xy] = float4(0, 0, 0, 0);
     velocityField[id.xy] = float4(0, 0, 0, 0);
     fluxMap[id.xy] = float4(0, 0, 0, 0);
@@ -77,7 +97,7 @@ void WaterInc (uint3 id : SV_DispatchThreadID)
     
     for (int i = 0; i < numWaterSources; i++)
     {
-        if (createCircle(id.xy, waterSources[i]))
+        if (createCircle(id.xy, waterSources[i]) && _Time.g < 50.0)
         {
             waterDelta1 += simulationTimeStep * waterSources[i].strength;
         }
@@ -192,16 +212,12 @@ void UpdateVelocityField (uint3 id : SV_DispatchThreadID)
 
     if (averageWaterDelta == 0.0)
     {
-        velocityField[id.xy] =  float4(0, 0, 0, 1);
+        velocityField[id.xy] =  float4(0, 0, velocityField[id.xy].ba);
     }
     else
     {
-        velocityField[id.xy] =  float4(deltaFlowX / (averageWaterDelta * lengthPipe), deltaFlowY / (averageWaterDelta * lengthPipe), 0, 1);
+        velocityField[id.xy] = float4(deltaFlowX, deltaFlowY, velocityField[id.xy].ba);
     }
-
-    float deltaX = deltaFlowX;
-
-    velocityField[id.xy] = float4(deltaX, deltaFlowY, 0, 1);
 }
 
 [numthreads(8,8,1)]
@@ -209,30 +225,31 @@ void Erosion (uint3 id : SV_DispatchThreadID)
 {
     float alpha = acos(GetHeightMapNormal(id.xy).y);
     float velocity = sqrt(velocityField[id.xy].r * velocityField[id.xy].r + velocityField[id.xy].g * velocityField[id.xy].g);
-    alpha = max(alpha, minAlpha);
+    //alpha = max(alpha, minAlpha);
     
     float capacity = sedimentTransportConst * sin(alpha) * velocity;
 
-    float sedimentDelta;
-    float newHeight;
+    float sedimentDelta = 0;
+    float newHeight = dataMap1[id.xy].r;
+    
     if (capacity > dataMap1[id.xy].g)
     {
         // dissolve
-        if (dataMap1[id.xy].r > 0.0)
-        {
-            float dissolve = dissolvingConst * simulationTimeStep;
-            dissolve = min(dissolve, capacity - dataMap1[id.xy].g);
+        float dissolve = dissolvingConst * simulationTimeStep;
+        dissolve = min(dissolve, capacity - dataMap1[id.xy].g);
         
+        if (dataMap1[id.xy].r - dissolve >= 0.0)
+        {
             newHeight = dataMap1[id.xy].r - dissolve;
             newHeight = max(newHeight, 0.0);
 
             sedimentDelta = dataMap1[id.xy].g + dissolve;
-        }        
+        }
     }
     else
     {
         // deposition
-        float deposit = dissolvingConst * simulationTimeStep;
+        float deposit = depositionConst * simulationTimeStep;
         deposit = min(deposit, dataMap1[id.xy].g - capacity);
         
         newHeight = dataMap1[id.xy].r + deposit;
@@ -252,7 +269,7 @@ void Transportation (uint3 id : SV_DispatchThreadID)
     int x = id.x - velocityField[id.xy].r * simulationTimeStep * dimensionX;
     int y = id.y - velocityField[id.xy].g * simulationTimeStep * dimensionY;
     float sediment = waterDeltaMap[int2(x, y)].b;
-    //sediment = max(sediment, 0.0);
+
     dataMap1[id.xy] = float4(dataMap1[id.xy].r, sediment, dataMap1[id.xy].ba);
 }
 
@@ -260,6 +277,10 @@ void Transportation (uint3 id : SV_DispatchThreadID)
 void Evaporation (uint3 id : SV_DispatchThreadID)
 {
     float water = waterDeltaMap[id.xy].g * (1.0 - evaporationConst * simulationTimeStep);
+    if (water < 0.0001)
+    {
+        water = 0.0;
+    }
 
     dataMap1[id.xy] = float4(dataMap1[id.xy].rg, water, 1);
 }
