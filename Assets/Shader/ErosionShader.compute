@@ -20,6 +20,7 @@ RWTexture2D<float4> dataMap1; // r = heightMap, g = suspended sediment, b = wate
 RWTexture2D<float4> fluxMap; // pipe model flux field | r = left, g = top, b = right, a = bottom
 RWTexture2D<float4> velocityField; // velocity field
 RWTexture2D<float4> waterDeltaMap; // r = delta1, g = delta2, b = sedimentDelta
+RWTexture2D<float4> sedimentDeltaMap; // r = delta1, g = delta2
 
 RWStructuredBuffer<WaterSourceStruct> waterSources;
 int numWaterSources;
@@ -65,19 +66,21 @@ float3 GetHeightMapNormal(uint2 id)
 float boxBlur(uint3 id)
 {
     float blurSum = 0;
+    float num = 0;
 
-    for (int xOffset = -1; xOffset <= 1; xOffset++)
+    for (int xOffset = -3; xOffset <= 3; xOffset++)
     {
-        for (int yOffset = -1; yOffset <= 1; yOffset++)
+        for (int yOffset = -3; yOffset <= 3; yOffset++)
         {
             if((int)id.x + xOffset >= 0 && id.x + xOffset < dimensionX && (int)id.y + yOffset >= 0 && id.y + yOffset < dimensionY)
             {
                 blurSum += dataMap1[int2(id.x + xOffset, id.y + yOffset)].r;
+                num++;
             }
         }
     }
 
-    return  blurSum /= 9.0;
+    return  blurSum /= num;
 }
 
 [numthreads(8,8,1)]
@@ -231,7 +234,7 @@ void Erosion (uint3 id : SV_DispatchThreadID)
 
     float sedimentDelta = 0;
     float newHeight = dataMap1[id.xy].r;
-    
+
     if (capacity > dataMap1[id.xy].g)
     {
         // dissolve
@@ -241,9 +244,9 @@ void Erosion (uint3 id : SV_DispatchThreadID)
         if (dataMap1[id.xy].r - dissolve >= 0.0)
         {
             newHeight = dataMap1[id.xy].r - dissolve;
-            newHeight = max(newHeight, 0.0);
 
             sedimentDelta = dataMap1[id.xy].g + dissolve;
+            sedimentDeltaMap[id.xy] = float4(sedimentDeltaMap[id.xy].r + dissolve, sedimentDeltaMap[id.xy].g, sedimentDelta, capacity);
         }
     }
     else
@@ -251,10 +254,14 @@ void Erosion (uint3 id : SV_DispatchThreadID)
         // deposition
         float deposit = depositionConst * simulationTimeStep;
         deposit = min(deposit, dataMap1[id.xy].g - capacity);
-        
-        newHeight = dataMap1[id.xy].r + deposit;
 
-        sedimentDelta = dataMap1[id.xy].g - deposit;
+        if (dataMap1[id.xy].g - deposit >= 0.0)
+        {
+            newHeight = dataMap1[id.xy].r + deposit;
+
+            sedimentDelta = dataMap1[id.xy].g - deposit;
+            sedimentDeltaMap[id.xy] = float4(sedimentDeltaMap[id.xy].r, sedimentDeltaMap[id.xy].g + deposit, sedimentDelta, capacity);
+        }
     }
 
     dataMap1[id.xy] = float4(newHeight, dataMap1[id.xy].gba);
@@ -266,9 +273,35 @@ void Erosion (uint3 id : SV_DispatchThreadID)
 void Transportation (uint3 id : SV_DispatchThreadID)
 {
     // TODO: fix border
-    int x = id.x - velocityField[id.xy].r * simulationTimeStep * dimensionX;
-    int y = id.y - velocityField[id.xy].g * simulationTimeStep * dimensionY;
-    float sediment = waterDeltaMap[int2(x, y)].b;
+    // TODO: fix transportation, no more losing sediment pls
+    int x = id.x;
+    if (velocityField[id.xy].r > 0.0)
+    {
+        x++;
+    }
+    else if (velocityField[id.xy].r < 0.0)
+    {
+        x--;
+    }
+    
+    // + velocityField[id.xy].r * simulationTimeStep * dimensionX;
+    int y = id.y;
+    if (velocityField[id.xy].g > 0.0)
+    {
+        y++;
+    }
+    else if (velocityField[id.xy].g < 0.0)
+    {
+        y--;
+    }
+    // + velocityField[id.xy].g * simulationTimeStep * dimensionY;
+
+    x = max(x, 0);
+    x = min(x, dimensionX - 1);
+    y = max(y, 0);
+    y = min(y, dimensionY - 1);
+    float sediment = waterDeltaMap[id.xy].b + waterDeltaMap[int2(x, y)].b;
+    waterDeltaMap[int2(x, y)] = float4(waterDeltaMap[int2(x, y)].rg, 0, waterDeltaMap[int2(x, y)].a);
 
     dataMap1[id.xy] = float4(dataMap1[id.xy].r, sediment, dataMap1[id.xy].ba);
 }
