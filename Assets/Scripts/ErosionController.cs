@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.Serialization;
 
 public class ErosionController : MonoBehaviour
 {
@@ -7,7 +6,7 @@ public class ErosionController : MonoBehaviour
     [SerializeField] private Texture2D heightMap;
     [SerializeField] private MeshGeneration meshGeneration;
     [SerializeField] private MeshRenderer debugMesh;
-    [FormerlySerializedAs("waterSource")] [SerializeField] private WaterSourceHandler waterSourceHandler;
+    [SerializeField] private WaterSourceHandler waterSourceHandler;
     
     private int initKernel;
     private int waterIncKernel;
@@ -92,10 +91,10 @@ public class ErosionController : MonoBehaviour
         erosionShader.SetFloat("lengthPipe", 1f);
         erosionShader.SetFloat("gravity", 1f);
         erosionShader.SetFloat("minAlpha", 0.0f);
-        erosionShader.SetFloat("sedimentTransportConst", 0.5f);
-        erosionShader.SetFloat("dissolvingConst", 0.00005f);
+        erosionShader.SetFloat("sedimentTransportConst", 2f);
+        erosionShader.SetFloat("dissolvingConst", 0.0005f);
         erosionShader.SetFloat("depositionConst", .005f);
-        erosionShader.SetFloat("evaporationConst", 0.002f);
+        erosionShader.SetFloat("evaporationConst", 0.2f);
         erosionShader.SetInt("dimensionX", size);
         erosionShader.SetInt("dimensionY", size);
 

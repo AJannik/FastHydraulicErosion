@@ -266,7 +266,7 @@ void Erosion (uint3 id : SV_DispatchThreadID)
         }
     }
 
-    dataMap1[id.xy] = float4(newHeight, sedimentDelta, dataMap1[id.xy].ba);
+    dataMap1[id.xy] = float4(newHeight, 0, dataMap1[id.xy].ba);
 
     waterDeltaMap[id.xy] = float4(waterDeltaMap[id.xy].rg, sedimentDelta, waterDeltaMap[id.xy].a);
 }
@@ -277,8 +277,8 @@ void Transportation (uint3 id : SV_DispatchThreadID)
     // TODO: fix border
     // TODO: fix transportation, no more losing sediment pls
     uint2 posId = uint2(posX, posY);
-    uint x = posX++;// - velocityField[posId].r * simulationTimeStep * dimensionX;
-    uint y = posY--;// - velocityField[posId].g * simulationTimeStep * dimensionY;
+    uint x = posX - (int)(velocityField[posId].r * simulationTimeStep * dimensionX);
+    uint y = posY - (int)(velocityField[posId].g * simulationTimeStep * dimensionY);
 
     x = max(x, 0);
     x = min(x, dimensionX - 1);
@@ -286,14 +286,14 @@ void Transportation (uint3 id : SV_DispatchThreadID)
     y = min(y, dimensionY - 1);
     const int2 pos = int2(x, y);
 
-    if (x != posX && y != posY)
+    if ((x != posX && y != posY) || true)
     {
-        float sediment = dataMap1[posId].g;
-        //waterDeltaMap[pos] = float4(waterDeltaMap[pos].rg, 0, waterDeltaMap[pos].a);
+        float sediment = waterDeltaMap[pos].b;
+        waterDeltaMap[pos] = float4(waterDeltaMap[pos].rg, 0, waterDeltaMap[pos].a);
 
-        dataMap1[posId] = float4(dataMap1[posId].r, dataMap1[pos].g, dataMap1[posId].ba);
-        dataMap1[pos] = float4(dataMap1[posId].r, sediment, dataMap1[posId].ba);
-    }    
+        dataMap1[posId] = float4(dataMap1[posId].r, waterDeltaMap[posId].b + sediment, dataMap1[posId].ba);
+        //dataMap1[pos] = float4(dataMap1[posId].r, sediment, dataMap1[posId].ba);
+    }
 }
 
 [numthreads(8,8,1)]
