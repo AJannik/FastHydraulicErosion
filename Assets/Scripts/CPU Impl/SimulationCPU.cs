@@ -7,6 +7,7 @@ namespace CPU_Impl
         [SerializeField] private int size = 8;
         [SerializeField] private Texture2D heightMap;
         [SerializeField] private WaterSourceHandler waterSourceHandler;
+        [SerializeField] private MeshGeneration meshGeneration;
         
         private float[,] heightValues;
         private float[,] waterHeight;
@@ -14,9 +15,13 @@ namespace CPU_Impl
         private float[,] waterHeightDelta2;
         private float[,] sediment;
         private float[,] sedimentDelta;
+        private float[,] erosionSum;
+        private float[,] depositionSum;
+        private float[,] sedimentSum;
         private Vector4[,] fluxValues;
         private Vector2[,] velocityField;
         private WaterSourceStruct[] waterSources;
+        private Texture2D tex;
 
         private float pipeCrossSection = 200f;
         private float gravity = 1f;
@@ -34,9 +39,13 @@ namespace CPU_Impl
             waterHeightDelta2 = new float[size, size];
             sediment = new float[size, size];
             sedimentDelta = new float[size, size];
+            erosionSum = new float[size, size];
+            depositionSum = new float[size, size];
+            sedimentSum = new float[size, size];
             fluxValues = new Vector4[size, size];
             velocityField = new Vector2[size, size];
             heightMap = Resize(heightMap, size, size);
+            tex = new Texture2D(size, size, TextureFormat.RGBAFloat, 1, true);
             
             waterSources = new[] { waterSourceHandler.GetData() };
             
@@ -45,8 +54,13 @@ namespace CPU_Impl
                 for (int j = 0; j < size; j++)
                 {
                     heightValues[i, j] = heightMap.GetPixel(i, j).r;
+                    tex.SetPixel(i, j, heightMap.GetPixel(i, j));
                 }
             }
+            
+            tex.Apply();
+            meshGeneration.UpdateHeightMap(tex);
+            meshGeneration.SetPosition(new Vector2(size, size));
         }
 
         private void Update()
@@ -106,6 +120,9 @@ namespace CPU_Impl
                     Evaporation(i, j);
                 }
             }
+            
+            tex.Apply();
+            PrintSums();
         }
 
         private void WaterInc(int x, int y)
@@ -256,6 +273,8 @@ namespace CPU_Impl
 
                     sedDelta = sediment[x, y] + dissolve;
                     sedimentDelta[x, y] = sedDelta;
+                    erosionSum[x, y] += dissolve;
+                    sedimentSum[x, y] = sedDelta;
                 }
             }
             else
@@ -270,9 +289,11 @@ namespace CPU_Impl
 
                     sedDelta = sediment[x, y] - deposit;
                     sedimentDelta[x, y] = sedDelta;
+                    depositionSum[x, y] += deposit;
+                    sedimentSum[x, y] = sedDelta;
                 }
             }
-
+            
             heightValues[x, y] = newHeight;
         }
 
@@ -290,11 +311,13 @@ namespace CPU_Impl
 
             if ((newX != x && newY != y))
             {
-                float sed = sedimentDelta[newX, newY];
+                float sed = sedimentDelta[x, y];
                 
-                heightValues[x, y] = sed;
+                //sediment[x, y] = sed;
                 //dataMap1[pos] = float4(dataMap1[posId].r, sediment, dataMap1[posId].ba);
             }
+
+            sediment[x, y] = sedimentDelta[newX, newY];
         }
 
         private void Evaporation(int x, int y)
@@ -306,13 +329,19 @@ namespace CPU_Impl
             }
 
             waterHeight[x, y] = water;
+            tex.SetPixel(x, y, new Color(heightValues[x, y], sediment[x, y], waterHeight[x, y]));
         }
 
         private Vector3 GetHeightMapNormal(int x, int y)
         {
             // TODO: fix border
-            Vector3 normal = new Vector3(2f * (heightValues[x + 1, y] - heightValues[x - 1, y]), 2f * (heightValues[x, y - 1] - heightValues[x, y + 1]), -4f);
-            return normal.normalized;
+            if (x > 0 && x < size - 1 && y > 0 && y < size - 1)
+            {
+                Vector3 normal = new Vector3(2f * (heightValues[x + 1, y] - heightValues[x - 1, y]), 2f * (heightValues[x, y - 1] - heightValues[x, y + 1]), -4f);
+                return normal.normalized;
+            }
+
+            return Vector3.up;
         }
         
         float DeltaHeight(int x, int y, int xOffset, int yOffset)
@@ -337,6 +366,30 @@ namespace CPU_Impl
             result.ReadPixels(new Rect(0,0,sizeX,sizeY),0,0);
             result.Apply();
             return result;
+        }
+
+        private float SumArray(float[,] arr)
+        {
+            float sum = 0;
+            for (int i = 0; i < arr.GetLength(0); i++)
+            {
+                for (int j = 0; j < arr.GetLength(1); j++)
+                {
+                    sum += arr[i, j];
+                }
+            }
+
+            return sum;
+        }
+
+        private void PrintSums()
+        {
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+                Debug.Log("Dissolve: " + SumArray(erosionSum));
+                Debug.Log("Deposition: " + SumArray(depositionSum));
+                Debug.Log("In Water: " + SumArray(sedimentSum));
+            }
         }
     }
 }

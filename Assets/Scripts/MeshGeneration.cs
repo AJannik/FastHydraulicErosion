@@ -41,6 +41,11 @@ public class MeshGeneration : MonoBehaviour
     {
         meshRenderer.materials[0].SetTexture(heightMapTextureProp, hMap);
     }
+    
+    public void UpdateHeightMap(Texture2D hMap)
+    {
+        meshRenderer.materials[0].SetTexture(heightMapTextureProp, hMap);
+    }
 
     public void SetPosition(Vector2 size)
     {
