@@ -18,18 +18,19 @@ namespace CPU_Impl
         private float[,] erosionSum;
         private float[,] depositionSum;
         private float[,] sedimentSum;
+        private int[,] indecies;
         private Vector4[,] fluxValues;
         private Vector2[,] velocityField;
         private WaterSourceStruct[] waterSources;
         private Texture2D tex;
 
-        private float pipeCrossSection = 200f;
+        private float pipeCrossSection = 5f;
         private float gravity = 1f;
         private float lengthPipe = 1f;
-        private float sedimentTransportConst = 2f;
-        private float dissolvingConst = 0.0005f;
-        private float depositionConst = 0.005f;
-        private float evaporationConst = 0.2f;
+        private float sedimentTransportConst = 0.0004f;
+        private float dissolvingConst = 0.00003f;
+        private float depositionConst = 0.00003f;
+        private float evaporationConst = 0.3f;
 
         private void Start()
         {
@@ -42,6 +43,7 @@ namespace CPU_Impl
             erosionSum = new float[size, size];
             depositionSum = new float[size, size];
             sedimentSum = new float[size, size];
+            indecies = new int[size, size];
             fluxValues = new Vector4[size, size];
             velocityField = new Vector2[size, size];
             heightMap = Resize(heightMap, size, size);
@@ -102,6 +104,14 @@ namespace CPU_Impl
                 for (int j = 0; j < size; j++)
                 {
                     Erosion(i, j);
+                }
+            }
+            
+            for (int i = 0; i < size; i++)
+            {
+                for (int j = 0; j < size; j++)
+                {
+                    PreTransport(i, j);
                 }
             }
             
@@ -297,6 +307,20 @@ namespace CPU_Impl
             heightValues[x, y] = newHeight;
         }
 
+        private void PreTransport(int x, int y)
+        {
+            int newX = x - (int)(velocityField[x, y].x * Time.deltaTime * size);
+            int newY = y - (int)(velocityField[x, y].y * Time.deltaTime * size);
+
+            newX = Mathf.Max(newX, 0);
+            newX = Mathf.Min(newX, size - 1);
+            newY = Mathf.Max(newY, 0);
+            newY = Mathf.Min(newY, size - 1);
+            
+            indecies[newX, newY]++;
+            sediment[x, y] = 0;
+        }
+        
         private void Transport(int x, int y)
         {
             // TODO: fix border
@@ -309,15 +333,13 @@ namespace CPU_Impl
             newY = Mathf.Max(newY, 0);
             newY = Mathf.Min(newY, size - 1);
 
-            if ((newX != x && newY != y))
-            {
-                float sed = sedimentDelta[x, y];
-                
-                //sediment[x, y] = sed;
-                //dataMap1[pos] = float4(dataMap1[posId].r, sediment, dataMap1[posId].ba);
-            }
+            //sediment[x, y] += sedimentDelta[newX, newY];
+            sediment[x, y] = sedimentDelta[newX, newY] / indecies[newX, newY];
 
-            sediment[x, y] = sedimentDelta[newX, newY];
+            if (indecies[x, y] == 0)
+            {
+                sediment[x, y] += sedimentDelta[x, y];
+            }
         }
 
         private void Evaporation(int x, int y)
@@ -330,6 +352,7 @@ namespace CPU_Impl
 
             waterHeight[x, y] = water;
             tex.SetPixel(x, y, new Color(heightValues[x, y], sediment[x, y], waterHeight[x, y]));
+            indecies[x, y] = 0;
         }
 
         private Vector3 GetHeightMapNormal(int x, int y)
