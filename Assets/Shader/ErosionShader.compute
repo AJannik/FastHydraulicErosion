@@ -18,9 +18,9 @@ struct WaterSourceStruct
 
 RWTexture2D<float4> dataMap1; // r = heightMap, g = suspended sediment, b = water level
 RWTexture2D<float4> fluxMap; // pipe model flux field | r = left, g = top, b = right, a = bottom
-RWTexture2D<float4> velocityField; // velocity field
+RWTexture2D<float4> velocityField; // r, g = velocity field
 RWTexture2D<float4> waterDeltaMap; // r = delta1, g = delta2, b = sedimentDelta
-RWTexture2D<float4> sedimentDeltaMap; // r = delta1, g = delta2
+RWTexture2D<float4> sedimentDeltaMap; // r = delta1, g = delta2, b = inWater
 
 RWStructuredBuffer<WaterSourceStruct> waterSources;
 int numWaterSources;
@@ -217,11 +217,11 @@ void UpdateVelocityField (uint3 id : SV_DispatchThreadID)
 
     if (averageWaterDelta == 0.0)
     {
-        velocityField[id.xy] =  float4(0, 0, velocityField[id.xy].ba);
+        velocityField[id.xy] =  float4(0, 0, 0, velocityField[id.xy].a);
     }
     else
     {
-        velocityField[id.xy] = float4(deltaFlowX, deltaFlowY, velocityField[id.xy].ba);
+        velocityField[id.xy] = float4(deltaFlowX, deltaFlowY, 0, velocityField[id.xy].a);
     }
 }
 
@@ -234,7 +234,7 @@ void Erosion (uint3 id : SV_DispatchThreadID)
     
     float capacity = sedimentTransportConst * sin(alpha) * velocity;
 
-    float sedimentDelta = 0;
+    float sedimentDelta;
     float newHeight = dataMap1[id.xy].r;
 
     if (capacity > dataMap1[id.xy].g)
@@ -248,7 +248,7 @@ void Erosion (uint3 id : SV_DispatchThreadID)
             newHeight = dataMap1[id.xy].r - dissolve;
 
             sedimentDelta = dataMap1[id.xy].g + dissolve;
-            sedimentDeltaMap[id.xy] = float4(sedimentDeltaMap[id.xy].r + dissolve, sedimentDeltaMap[id.xy].g, sedimentDelta, capacity);
+            sedimentDeltaMap[id.xy] = float4(sedimentDeltaMap[id.xy].r + dissolve, sedimentDeltaMap[id.xy].g, sedimentDelta, 0);
         }
     }
     else
@@ -262,38 +262,38 @@ void Erosion (uint3 id : SV_DispatchThreadID)
             newHeight = dataMap1[id.xy].r + deposit;
 
             sedimentDelta = dataMap1[id.xy].g - deposit;
-            sedimentDeltaMap[id.xy] = float4(sedimentDeltaMap[id.xy].r, sedimentDeltaMap[id.xy].g + deposit, sedimentDelta, capacity);
+            sedimentDeltaMap[id.xy] = float4(sedimentDeltaMap[id.xy].r, sedimentDeltaMap[id.xy].g + deposit, sedimentDelta, 0);
         }
     }
 
     dataMap1[id.xy] = float4(newHeight, 0, dataMap1[id.xy].ba);
-
-    waterDeltaMap[id.xy] = float4(waterDeltaMap[id.xy].rg, sedimentDelta, waterDeltaMap[id.xy].a);
 }
 
-[numthreads(1,1,1)]
+[numthreads(8,8,1)]
 void Transportation (uint3 id : SV_DispatchThreadID)
 {
     // TODO: fix border
     // TODO: fix transportation, no more losing sediment pls
-    uint2 posId = uint2(posX, posY);
-    uint x = posX - (int)(velocityField[posId].r * simulationTimeStep * dimensionX);
-    uint y = posY - (int)(velocityField[posId].g * simulationTimeStep * dimensionY);
+    //uint2 posId = uint2(posX, posY);
+    float x = id.x - velocityField[id.xy].r * simulationTimeStep * dimensionX;
+    float y = id.y - velocityField[id.xy].g * simulationTimeStep * dimensionY;
 
     x = max(x, 0);
     x = min(x, dimensionX - 1);
     y = max(y, 0);
     y = min(y, dimensionY - 1);
-    const int2 pos = int2(x, y);
 
-    if ((x != posX && y != posY) || true)
-    {
-        float sediment = waterDeltaMap[pos].b;
-        waterDeltaMap[pos] = float4(waterDeltaMap[pos].rg, 0, waterDeltaMap[pos].a);
+    int x1 = floor(x);
+    int x2 = ceil(x);
+    int y1 = ceil(y);
+    int y2 = ceil(y);    
 
-        dataMap1[posId] = float4(dataMap1[posId].r, waterDeltaMap[posId].b + sediment, dataMap1[posId].ba);
-        //dataMap1[pos] = float4(dataMap1[posId].r, sediment, dataMap1[posId].ba);
-    }
+    float r1 = lerp(sedimentDeltaMap[int2(x1, y1)].b, sedimentDeltaMap[int2(x2, y1)].b, x - x1);
+    float r2 = lerp(sedimentDeltaMap[int2(x1, y2)].b, sedimentDeltaMap[int2(x2, y2)].b, x - x1);
+
+    float sed = lerp(r1, r2, y - y1);
+
+    dataMap1[id.xy] = float4(dataMap1[id.xy].r, sed, dataMap1[id.xy].ba);
 }
 
 [numthreads(8,8,1)]

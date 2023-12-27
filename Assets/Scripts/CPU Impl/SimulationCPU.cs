@@ -18,7 +18,6 @@ namespace CPU_Impl
         private float[,] erosionSum;
         private float[,] depositionSum;
         private float[,] sedimentSum;
-        private int[,] indecies;
         private Vector4[,] fluxValues;
         private Vector2[,] velocityField;
         private WaterSourceStruct[] waterSources;
@@ -30,7 +29,7 @@ namespace CPU_Impl
         private float sedimentTransportConst = 0.0004f;
         private float dissolvingConst = 0.00003f;
         private float depositionConst = 0.00003f;
-        private float evaporationConst = 0.3f;
+        private float evaporationConst = 0.03f;
 
         private void Start()
         {
@@ -43,7 +42,6 @@ namespace CPU_Impl
             erosionSum = new float[size, size];
             depositionSum = new float[size, size];
             sedimentSum = new float[size, size];
-            indecies = new int[size, size];
             fluxValues = new Vector4[size, size];
             velocityField = new Vector2[size, size];
             heightMap = Resize(heightMap, size, size);
@@ -106,15 +104,7 @@ namespace CPU_Impl
                     Erosion(i, j);
                 }
             }
-            
-            for (int i = 0; i < size; i++)
-            {
-                for (int j = 0; j < size; j++)
-                {
-                    PreTransport(i, j);
-                }
-            }
-            
+
             for (int i = 0; i < size; i++)
             {
                 for (int j = 0; j < size; j++)
@@ -306,40 +296,26 @@ namespace CPU_Impl
             
             heightValues[x, y] = newHeight;
         }
-
-        private void PreTransport(int x, int y)
-        {
-            int newX = x - (int)(velocityField[x, y].x * Time.deltaTime * size);
-            int newY = y - (int)(velocityField[x, y].y * Time.deltaTime * size);
-
-            newX = Mathf.Max(newX, 0);
-            newX = Mathf.Min(newX, size - 1);
-            newY = Mathf.Max(newY, 0);
-            newY = Mathf.Min(newY, size - 1);
-            
-            indecies[newX, newY]++;
-            sediment[x, y] = 0;
-        }
         
         private void Transport(int x, int y)
         {
-            // TODO: fix border
-            // TODO: fix transportation, no more losing sediment pls
-            int newX = x - (int)(velocityField[x, y].x * Time.deltaTime * size);
-            int newY = y - (int)(velocityField[x, y].y * Time.deltaTime * size);
+            float newX = x - velocityField[x, y].x * Time.deltaTime * size;
+            float newY = y - velocityField[x, y].y * Time.deltaTime * size;
 
             newX = Mathf.Max(newX, 0);
             newX = Mathf.Min(newX, size - 1);
             newY = Mathf.Max(newY, 0);
             newY = Mathf.Min(newY, size - 1);
 
-            //sediment[x, y] += sedimentDelta[newX, newY];
-            sediment[x, y] = sedimentDelta[newX, newY] / indecies[newX, newY];
+            int x1 = Mathf.FloorToInt(newX);
+            int x2 = Mathf.CeilToInt(newX);
+            int y1 = Mathf.FloorToInt(newY);
+            int y2 = Mathf.CeilToInt(newY);
 
-            if (indecies[x, y] == 0)
-            {
-                sediment[x, y] += sedimentDelta[x, y];
-            }
+            float r1 = Mathf.Lerp(sedimentDelta[x1, y1], sedimentDelta[x2, y1], newX - x1);
+            float r2 = Mathf.Lerp(sedimentDelta[x1, y2], sedimentDelta[x2, y2], newX - x1);
+
+            sediment[x, y] = Mathf.Lerp(r1, r2, newY - y1);
         }
 
         private void Evaporation(int x, int y)
@@ -352,7 +328,6 @@ namespace CPU_Impl
 
             waterHeight[x, y] = water;
             tex.SetPixel(x, y, new Color(heightValues[x, y], sediment[x, y], waterHeight[x, y]));
-            indecies[x, y] = 0;
         }
 
         private Vector3 GetHeightMapNormal(int x, int y)
@@ -411,7 +386,7 @@ namespace CPU_Impl
             {
                 Debug.Log("Dissolve: " + SumArray(erosionSum));
                 Debug.Log("Deposition: " + SumArray(depositionSum));
-                Debug.Log("In Water: " + SumArray(sedimentSum));
+                Debug.Log("In Water: " + SumArray(sediment));
             }
         }
     }
