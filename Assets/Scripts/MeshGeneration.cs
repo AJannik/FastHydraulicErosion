@@ -4,6 +4,7 @@ public class MeshGeneration : MonoBehaviour
 {
     public Texture2D heightMap;
     public MeshFilter meshFilter;
+    [SerializeField] private bool useProportionalHeight = true;
     [SerializeField] private float heightMultiplier = 1f;
     [SerializeField, Range(0.1f, 2f)] private float resolution = 1f;
     [SerializeField] private MeshRenderer meshRenderer;
@@ -11,7 +12,8 @@ public class MeshGeneration : MonoBehaviour
     private MeshData meshData;
     
     private readonly int heightMapTextureProp = Shader.PropertyToID("_HeightMap");
-    
+    private readonly int heightStrengthProp = Shader.PropertyToID("_Height_Strength");
+
     private void Start()
     {
         float[,] values = SampleHeightMap();
@@ -50,5 +52,12 @@ public class MeshGeneration : MonoBehaviour
     public void SetPosition(Vector2 size)
     {
         transform.position = new Vector3(size.x, 0, size.y) * resolution;
+        if (useProportionalHeight)
+        {
+            meshRenderer.materials[0].SetFloat(heightStrengthProp, size.magnitude * resolution);
+            return;
+        }
+        
+        meshRenderer.materials[0].SetFloat(heightStrengthProp, heightMultiplier * resolution);
     }
 }

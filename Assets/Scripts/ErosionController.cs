@@ -6,7 +6,8 @@ public class ErosionController : MonoBehaviour
     [SerializeField] private Texture2D heightMap;
     [SerializeField] private MeshGeneration meshGeneration;
     [SerializeField] private MeshRenderer debugMesh;
-    [SerializeField] private WaterSourceHandler waterSourceHandler;
+    [SerializeField] private WaterSourceManager waterSourceManager;
+    [SerializeField] private EventChannel eventChannel;
     
     private int initKernel;
     private int waterIncKernel;
@@ -30,7 +31,17 @@ public class ErosionController : MonoBehaviour
     private readonly int sedimentDeltaMapShaderProp = Shader.PropertyToID("sedimentDeltaMap");
     
     private int size = 512;
-    
+
+    private void OnEnable()
+    {
+        eventChannel.OnUpdateWaterSources += SetWaterSources;
+    }
+
+    private void OnDisable()
+    {
+        eventChannel.OnUpdateWaterSources -= SetWaterSources;
+    }
+
     private void Start()
     {
         initKernel = erosionShader.FindKernel("Init");
@@ -49,9 +60,7 @@ public class ErosionController : MonoBehaviour
         sedimentDeltaMap = new RenderTexture(size, size, 32, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
         Graphics.Blit(heightMap, computeDataMap1);
         
-        WaterSourceStruct[] waterSources = new[] { waterSourceHandler.GetData() };
-        waterSourcesBuffer = new ComputeBuffer(waterSources.Length, System.Runtime.InteropServices.Marshal.SizeOf(typeof(WaterSourceStruct)));
-        waterSourcesBuffer.SetData(waterSources);
+        SetWaterSources();
         
         erosionShader.SetTexture(initKernel, dataMap1ShaderProp, computeDataMap1);
         erosionShader.SetTexture(initKernel, waterDeltaMapShaderProp, computeWaterDeltaMap);
@@ -85,8 +94,7 @@ public class ErosionController : MonoBehaviour
         
         erosionShader.SetTexture(evaporationKernel, dataMap1ShaderProp, computeDataMap1);
         erosionShader.SetTexture(evaporationKernel, waterDeltaMapShaderProp, computeWaterDeltaMap);
-
-        erosionShader.SetInt("numWaterSources", waterSources.Length);
+        
         erosionShader.SetFloat("pipeCrossSection", 5f);
         erosionShader.SetFloat("lengthPipe", 1f);
         erosionShader.SetFloat("gravity", 1f);
@@ -117,19 +125,6 @@ public class ErosionController : MonoBehaviour
         erosionShader.Dispatch(updateWaterHeightKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(updateVelocityFieldKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(erosionKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
-        
-        /*
-        for (int i = 0; i < size; i++)
-        {
-            for (int y = 0; y < size; y++)
-            {
-                erosionShader.SetInt("posX", i);
-                erosionShader.SetInt("posY", y);
-                
-            }
-        }
-        */
-        
         erosionShader.Dispatch(transportKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(evaporationKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
     }
@@ -168,12 +163,26 @@ public class ErosionController : MonoBehaviour
         return tex;
     }
 
+    private void SetWaterSources()
+    {
+        waterSourcesBuffer?.Release();
+        WaterSourceStruct[] waterSources = new WaterSourceStruct[waterSourceManager.NumSources];
+        for (var index = 0; index < waterSourceManager.WaterSourceHandlers.Count; index++)
+        {
+            waterSources[index] = waterSourceManager.WaterSourceHandlers[index].GetData();
+        }
+
+        waterSourcesBuffer = new ComputeBuffer(waterSources.Length, System.Runtime.InteropServices.Marshal.SizeOf(typeof(WaterSourceStruct)));
+        waterSourcesBuffer.SetData(waterSources);
+        erosionShader.SetInt("numWaterSources", waterSources.Length);
+    }
+
     private void OnDestroy()
     {
         computeDataMap1.Release();
         computeFluxMap.Release();
         computeVelocityField.Release();
         computeWaterDeltaMap.Release();
-        waterSourcesBuffer.Release();
+        waterSourcesBuffer?.Release();
     }
 }

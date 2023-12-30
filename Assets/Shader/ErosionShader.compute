@@ -12,6 +12,7 @@
 struct WaterSourceStruct
 {
     float strength;
+    float ttl;
     int radius;
     int2 pos;
 };
@@ -27,8 +28,6 @@ int numWaterSources;
 
 uint dimensionX;
 uint dimensionY;
-uint posX;
-uint posY;
 float simulationTimeStep = 0.01;
 float pipeCrossSection = 1.0;
 float lengthPipe = 1.0;
@@ -60,9 +59,13 @@ float GetSteepness(uint2 id)
 
 float3 GetHeightMapNormal(uint2 id)
 {
-    // TODO: fix border
-    float3 normal = float3(2.0 * (dataMap1[int2(id.x + 1, id.y)].r - dataMap1[int2(id.x - 1, id.y)].r), 2.0 * (dataMap1[int2(id.x, id.y - 1)].r - dataMap1[int2(id.x, id.y + 1)].r), -4.0);
-    return normalize(normal);
+    if (id.x > 0 && id.x < dimensionX - 1 && id.y > 0 && id.y < dimensionY - 1)
+    {
+        float3 normal = float3(2.0 * (dataMap1[int2(id.x + 1, id.y)].r - dataMap1[int2(id.x - 1, id.y)].r), 2.0 * (dataMap1[int2(id.x, id.y - 1)].r - dataMap1[int2(id.x, id.y + 1)].r), -4.0);
+        return normalize(normal);
+    }
+
+    return float3(0, 0, 1);
 }
 
 float boxBlur(uint3 id)
@@ -102,8 +105,9 @@ void WaterInc (uint3 id : SV_DispatchThreadID)
     
     for (int i = 0; i < numWaterSources; i++)
     {
-        if (createCircle(id.xy, waterSources[i]) && _Time.g < 50.0)
+        if (createCircle(id.xy, waterSources[i]) && waterSources[i].ttl > 0.0)
         {
+            waterSources[i].ttl -= simulationTimeStep;
             waterDelta1 += simulationTimeStep * waterSources[i].strength;
         }
     }
@@ -272,9 +276,6 @@ void Erosion (uint3 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void Transportation (uint3 id : SV_DispatchThreadID)
 {
-    // TODO: fix border
-    // TODO: fix transportation, no more losing sediment pls
-    //uint2 posId = uint2(posX, posY);
     float x = id.x - velocityField[id.xy].r * simulationTimeStep * dimensionX;
     float y = id.y - velocityField[id.xy].g * simulationTimeStep * dimensionY;
 

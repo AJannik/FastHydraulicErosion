@@ -153,6 +153,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   strength: 0.116
+  timeToLive: 0
   radius: 11
 --- !u!4 &317713206
 Transform:
@@ -162,12 +163,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 317713204}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 150, y: 0, z: 150}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 935228933}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &330585543
 GameObject:
@@ -489,6 +490,52 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &935228932
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 935228933}
+  - component: {fileID: 935228934}
+  m_Layer: 0
+  m_Name: WaterSourceHandler
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &935228933
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 935228932}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 317713206}
+  m_Father: {fileID: 1366781803}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &935228934
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 935228932}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: da9e1172912340b3a52103dc152a3f5d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  eventChannel: {fileID: 11400000, guid: ec3c3a9cab2d7c845b08e3169dec454c, type: 2}
 --- !u!1 &1366781801
 GameObject:
   m_ObjectHideFlags: 0
@@ -523,6 +570,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   heightMap: {fileID: 2800000, guid: 52fbccfae123ee14382b42e03792a13f, type: 3}
   meshFilter: {fileID: 1366781805}
+  useProportionalHeight: 1
   heightMultiplier: 500
   resolution: 1
   meshRenderer: {fileID: 1366781804}
@@ -538,7 +586,8 @@ Transform:
   m_LocalPosition: {x: 2048, y: 0, z: 2048}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 935228933}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
 --- !u!23 &1366781804
@@ -607,7 +656,8 @@ MonoBehaviour:
   heightMap: {fileID: 2800000, guid: f89c21fa6c15b754ea6624a47c69917f, type: 3}
   meshGeneration: {fileID: 1366781802}
   debugMesh: {fileID: 1636647268}
-  waterSourceHandler: {fileID: 317713205}
+  waterSourceManager: {fileID: 935228934}
+  eventChannel: {fileID: 11400000, guid: ec3c3a9cab2d7c845b08e3169dec454c, type: 2}
 --- !u!1 &1433093746
 GameObject:
   m_ObjectHideFlags: 0
@@ -708,6 +758,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   heightMap: {fileID: 2800000, guid: 52fbccfae123ee14382b42e03792a13f, type: 3}
   meshFilter: {fileID: 1433093749}
+  useProportionalHeight: 1
   heightMultiplier: 500
   resolution: 1
   meshRenderer: {fileID: 1433093748}
@@ -905,4 +956,3 @@ SceneRoots:
   - {fileID: 832575519}
   - {fileID: 1366781803}
   - {fileID: 1433093751}
-  - {fileID: 317713206}
