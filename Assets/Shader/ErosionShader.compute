@@ -7,8 +7,6 @@
 #pragma kernel Transportation
 #pragma kernel Evaporation
 
-#include "UnityCG.cginc"
-
 struct WaterSourceStruct
 {
     float strength;
@@ -29,6 +27,7 @@ int numWaterSources;
 uint dimensionX;
 uint dimensionY;
 float simulationTimeStep = 0.01;
+float runTime = 0.0;
 float pipeCrossSection = 1.0;
 float lengthPipe = 1.0;
 float gravity = 9.81;
@@ -105,9 +104,8 @@ void WaterInc (uint3 id : SV_DispatchThreadID)
     
     for (int i = 0; i < numWaterSources; i++)
     {
-        if (createCircle(id.xy, waterSources[i]) && waterSources[i].ttl > 0.0)
+        if (waterSources[i].ttl > runTime && createCircle(id.xy, waterSources[i]))
         {
-            waterSources[i].ttl -= simulationTimeStep;
             waterDelta1 += simulationTimeStep * waterSources[i].strength;
         }
     }

@@ -9,7 +9,7 @@ public class WaterSourceManager : MonoBehaviour
     public List<WaterSourceHandler> WaterSourceHandlers => waterSourceHandlers;
     public int NumSources => waterSourceHandlers.Count;
 
-    private void Start()
+    private void Awake()
     {
         UpdateSources();
     }

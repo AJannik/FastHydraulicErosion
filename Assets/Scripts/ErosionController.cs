@@ -2,6 +2,7 @@ using UnityEngine;
 
 public class ErosionController : MonoBehaviour
 {
+    [SerializeField] private int size = 512;
     [SerializeField] private ComputeShader erosionShader;
     [SerializeField] private Texture2D heightMap;
     [SerializeField] private MeshGeneration meshGeneration;
@@ -29,8 +30,6 @@ public class ErosionController : MonoBehaviour
     private readonly int velocityFieldShaderProp = Shader.PropertyToID("velocityField");
     private readonly int waterDeltaMapShaderProp = Shader.PropertyToID("waterDeltaMap");
     private readonly int sedimentDeltaMapShaderProp = Shader.PropertyToID("sedimentDeltaMap");
-    
-    private int size = 512;
 
     private void OnEnable()
     {
@@ -53,6 +52,8 @@ public class ErosionController : MonoBehaviour
         transportKernel = erosionShader.FindKernel("Transportation");
         evaporationKernel = erosionShader.FindKernel("Evaporation");
         
+        meshGeneration.CreateMesh(size);
+        
         computeDataMap1 = new RenderTexture(size, size, 32, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
         computeFluxMap = new RenderTexture(size, size, 32, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
         computeVelocityField = new RenderTexture(size, size, 32, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.sRGB) {enableRandomWrite = true};
@@ -69,8 +70,7 @@ public class ErosionController : MonoBehaviour
         
         erosionShader.SetTexture(waterIncKernel, waterDeltaMapShaderProp, computeWaterDeltaMap);
         erosionShader.SetTexture(waterIncKernel, dataMap1ShaderProp, computeDataMap1);
-        erosionShader.SetBuffer(waterIncKernel, "waterSources", waterSourcesBuffer);
-        
+
         erosionShader.SetTexture(updateFluxMapKernel, waterDeltaMapShaderProp, computeWaterDeltaMap);
         erosionShader.SetTexture(updateFluxMapKernel, dataMap1ShaderProp, computeDataMap1);
         erosionShader.SetTexture(updateFluxMapKernel, fluxMapShaderProp, computeFluxMap);
@@ -111,15 +111,16 @@ public class ErosionController : MonoBehaviour
 
         if (debugMesh)
         {
-            debugMesh.materials[0].mainTexture = computeVelocityField;
+            debugMesh.materials[0].mainTexture = computeWaterDeltaMap;
         }
         
         erosionShader.Dispatch(initKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
     }
 
-    private void FixedUpdate()
+    private void Update()
     {
-        erosionShader.SetFloat("simulationTimeStep", Time.fixedDeltaTime);
+        erosionShader.SetFloat("simulationTimeStep", Time.deltaTime);
+        erosionShader.SetFloat("runTime", Time.time);
         erosionShader.Dispatch(waterIncKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(updateFluxMapKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(updateWaterHeightKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
@@ -127,10 +128,7 @@ public class ErosionController : MonoBehaviour
         erosionShader.Dispatch(erosionKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(transportKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
         erosionShader.Dispatch(evaporationKernel, computeDataMap1.width / 8, computeDataMap1.height / 8, 1);
-    }
-
-    private void Update()
-    {
+        
         if (Input.GetKeyDown(KeyCode.Space))
         {
             Texture2D tex = ToTexture2D(sedimentDeltaMap);
@@ -169,12 +167,13 @@ public class ErosionController : MonoBehaviour
         WaterSourceStruct[] waterSources = new WaterSourceStruct[waterSourceManager.NumSources];
         for (var index = 0; index < waterSourceManager.WaterSourceHandlers.Count; index++)
         {
-            waterSources[index] = waterSourceManager.WaterSourceHandlers[index].GetData();
+            waterSources[index] = waterSourceManager.WaterSourceHandlers[index].GetData(meshGeneration.Resolution);
         }
 
         waterSourcesBuffer = new ComputeBuffer(waterSources.Length, System.Runtime.InteropServices.Marshal.SizeOf(typeof(WaterSourceStruct)));
         waterSourcesBuffer.SetData(waterSources);
         erosionShader.SetInt("numWaterSources", waterSources.Length);
+        erosionShader.SetBuffer(waterIncKernel, "waterSources", waterSourcesBuffer);
     }
 
     private void OnDestroy()

@@ -47,7 +47,7 @@ namespace CPU_Impl
             heightMap = Resize(heightMap, size, size);
             tex = new Texture2D(size, size, TextureFormat.RGBAFloat, 1, true);
             
-            waterSources = new[] { waterSourceHandler.GetData() };
+            waterSources = new[] { waterSourceHandler.GetData(meshGeneration.Resolution) };
             
             for (int i = 0; i < size; i++)
             {

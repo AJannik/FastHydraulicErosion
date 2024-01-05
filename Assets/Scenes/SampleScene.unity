@@ -152,9 +152,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 95847b8cbf0143af85e67b4dfe6fc4ec, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  strength: 0.116
-  timeToLive: 0
-  radius: 11
+  eventChannel: {fileID: 11400000, guid: ec3c3a9cab2d7c845b08e3169dec454c, type: 2}
+  timeToLive: 0.5
+  radius: 14
+  strength: 0.096
 --- !u!4 &317713206
 Transform:
   m_ObjectHideFlags: 0
@@ -521,7 +522,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 317713206}
-  m_Father: {fileID: 1366781803}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &935228934
 MonoBehaviour:
@@ -586,8 +587,7 @@ Transform:
   m_LocalPosition: {x: 2048, y: 0, z: 2048}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 935228933}
+  m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
 --- !u!23 &1366781804
@@ -652,6 +652,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8e134dd575324a6aa9a9c2bb3b2a4202, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  size: 1024
   erosionShader: {fileID: 7200000, guid: 0524d25f3503ce74aa45986219a0093c, type: 3}
   heightMap: {fileID: 2800000, guid: f89c21fa6c15b754ea6624a47c69917f, type: 3}
   meshGeneration: {fileID: 1366781802}
@@ -954,5 +955,6 @@ SceneRoots:
   - {fileID: 330585546}
   - {fileID: 410087041}
   - {fileID: 832575519}
+  - {fileID: 935228933}
   - {fileID: 1366781803}
   - {fileID: 1433093751}

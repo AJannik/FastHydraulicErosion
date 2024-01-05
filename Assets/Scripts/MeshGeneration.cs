@@ -14,29 +14,29 @@ public class MeshGeneration : MonoBehaviour
     private readonly int heightMapTextureProp = Shader.PropertyToID("_HeightMap");
     private readonly int heightStrengthProp = Shader.PropertyToID("_Height_Strength");
 
-    private void Start()
-    {
-        float[,] values = SampleHeightMap();
-        meshData = new MeshData(values, heightMultiplier, resolution);
-        meshFilter.mesh = meshData.CreateMesh();
-    }
+    public float Resolution => resolution;
 
-    private float[,] SampleHeightMap()
+    private float[,] SampleHeightMap(int size)
     {
         Color[] pixels = heightMap.GetPixels();
-        int width = heightMap.width;
-        int depth = heightMap.height;
-        float[,] values = new float[width, depth];
+        float[,] values = new float[size, size];
 
-        for (int x = 0; x < width; x++)
+        for (int x = 0; x < size; x++)
         {
-            for (int y = 0; y < depth; y++)
+            for (int y = 0; y < size; y++)
             {
-                values[x, y] = pixels[y * width + x].r;
+                values[x, y] = pixels[y * size + x].r;
             }
         }
 
         return values;
+    }
+
+    public void CreateMesh(int size)
+    {
+        float[,] values = SampleHeightMap(size);
+        meshData = new MeshData(values, heightMultiplier, resolution);
+        meshFilter.mesh = meshData.CreateMesh();
     }
 
     public void UpdateHeightMap(RenderTexture hMap)
