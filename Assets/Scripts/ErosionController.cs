@@ -34,11 +34,13 @@ public class ErosionController : MonoBehaviour
     private void OnEnable()
     {
         eventChannel.OnUpdateWaterSources += SetWaterSources;
+        eventChannel.OnRainChanged += SetRain;
     }
 
     private void OnDisable()
     {
         eventChannel.OnUpdateWaterSources -= SetWaterSources;
+        eventChannel.OnRainChanged -= SetRain;
     }
 
     private void Start()
@@ -95,14 +97,14 @@ public class ErosionController : MonoBehaviour
         erosionShader.SetTexture(evaporationKernel, dataMap1ShaderProp, computeDataMap1);
         erosionShader.SetTexture(evaporationKernel, waterDeltaMapShaderProp, computeWaterDeltaMap);
         
-        erosionShader.SetFloat("pipeCrossSection", 5f);
+        erosionShader.SetFloat("pipeCrossSection", 50f);
         erosionShader.SetFloat("lengthPipe", 1f);
         erosionShader.SetFloat("gravity", 1f);
         erosionShader.SetFloat("minAlpha", 0.0f);
         erosionShader.SetFloat("sedimentTransportConst", 0.0004f);
         erosionShader.SetFloat("dissolvingConst", 0.00003f);
         erosionShader.SetFloat("depositionConst", 0.00003f);
-        erosionShader.SetFloat("evaporationConst", 0.3f);
+        erosionShader.SetFloat("evaporationConst", 0.005f);
         erosionShader.SetInt("dimensionX", size);
         erosionShader.SetInt("dimensionY", size);
 
@@ -174,6 +176,13 @@ public class ErosionController : MonoBehaviour
         waterSourcesBuffer.SetData(waterSources);
         erosionShader.SetInt("numWaterSources", waterSources.Length);
         erosionShader.SetBuffer(waterIncKernel, "waterSources", waterSourcesBuffer);
+    }
+
+    private void SetRain(bool useRain, float rainStrength, int rainRadius)
+    {
+        erosionShader.SetBool("rain", useRain);
+        erosionShader.SetFloat("rainStrength", rainStrength);
+        erosionShader.SetInt("rainRadius", rainRadius);
     }
 
     private void OnDestroy()

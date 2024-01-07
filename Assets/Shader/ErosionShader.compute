@@ -36,6 +36,9 @@ float minAlpha = 0.17;
 float sedimentTransportConst = 1.0;
 float dissolvingConst = 0.5;
 float depositionConst = 0.5;
+bool rain = false;
+float rainStrength;
+int rainRadius;
 
 float deltaHeight(uint2 id, int2 offset)
 {
@@ -46,6 +49,12 @@ bool createCircle(uint2 uv, WaterSourceStruct waterSource) {
     int dist = distance((int2)uv, waterSource.pos);
     dist = abs(dist);
     return dist <= waterSource.radius;
+}
+
+bool createRainCircle(uint2 uv, int2 pos) {
+    int dist = distance((int2)uv, pos);
+    dist = abs(dist);
+    return dist <= rainRadius;
 }
 
 float GetSteepness(uint2 id)
@@ -87,6 +96,13 @@ float boxBlur(uint3 id)
     return  blurSum /= num;
 }
 
+float2 hash21(float p)
+{
+    float3 p3 = frac(float3(p, p, p) * float3(.1031, .1030, .0973));
+    p3 += dot(p3, p3.yzx + 33.33);
+    return frac((p3.xx+p3.yz)*p3.zy);
+}
+
 [numthreads(8,8,1)]
 void Init (uint3 id : SV_DispatchThreadID)
 {
@@ -101,7 +117,19 @@ void WaterInc (uint3 id : SV_DispatchThreadID)
 {
     // TODO: rain simulation
     float waterDelta1 = dataMap1[id.xy].b;
-    
+
+    // rain
+    if (rain)
+    {
+        float2 pos = hash21(((id.x / dimensionX) * (id.y / dimensionY) * 0.1) + runTime * 500 + 50);
+        int2 posInt = int2(pos.x * dimensionX, pos.y * dimensionY);
+        if (createRainCircle(id.xy, posInt))
+        {
+            waterDelta1 += simulationTimeStep * rainStrength;
+        }
+    }
+
+    // water sources
     for (int i = 0; i < numWaterSources; i++)
     {
         if (waterSources[i].ttl > runTime && createCircle(id.xy, waterSources[i]))

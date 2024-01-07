@@ -332,7 +332,6 @@ namespace CPU_Impl
 
         private Vector3 GetHeightMapNormal(int x, int y)
         {
-            // TODO: fix border
             if (x > 0 && x < size - 1 && y > 0 && y < size - 1)
             {
                 Vector3 normal = new Vector3(2f * (heightValues[x + 1, y] - heightValues[x - 1, y]), 2f * (heightValues[x, y - 1] - heightValues[x, y + 1]), -4f);
