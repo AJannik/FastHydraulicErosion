@@ -19,7 +19,7 @@ RWTexture2D<float4> dataMap1; // r = heightMap, g = suspended sediment, b = wate
 RWTexture2D<float4> fluxMap; // pipe model flux field | r = left, g = top, b = right, a = bottom
 RWTexture2D<float4> velocityField; // r, g = velocity field
 RWTexture2D<float4> waterDeltaMap; // r = delta1, g = delta2, b = sedimentDelta
-RWTexture2D<float4> sedimentDeltaMap; // r = delta1, g = delta2, b = inWater
+RWTexture2D<float4> sedimentDeltaMap; // r = delta1, g = delta2, b = sedimentDelta
 
 RWStructuredBuffer<WaterSourceStruct> waterSources;
 int numWaterSources;
@@ -115,7 +115,6 @@ void Init (uint3 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void WaterInc (uint3 id : SV_DispatchThreadID)
 {
-    // TODO: rain simulation
     float waterDelta1 = dataMap1[id.xy].b;
 
     // rain
@@ -260,7 +259,7 @@ void Erosion (uint3 id : SV_DispatchThreadID)
 {
     float alpha = acos(GetHeightMapNormal(id.xy).y);
     float velocity = sqrt(velocityField[id.xy].r * velocityField[id.xy].r + velocityField[id.xy].g * velocityField[id.xy].g);
-    //alpha = max(alpha, minAlpha);
+    alpha = max(alpha, minAlpha);
     
     float capacity = sedimentTransportConst * sin(alpha) * velocity;
 
