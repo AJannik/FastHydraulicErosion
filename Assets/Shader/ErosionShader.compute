@@ -1,14 +1,335 @@
-#pragma kernel CSMain
-#include <UnityCG.cginc>
+#pragma kernel Init
+#pragma kernel WaterInc
+#pragma kernel UpdateFluxMap
+#pragma kernel UpdateWaterHeight
+#pragma kernel UpdateVelocityField
+#pragma kernel Erosion
+#pragma kernel Transportation
+#pragma kernel Evaporation
 
-RWTexture2D<float4> heightMap;
+struct WaterSourceStruct
+{
+    float strength;
+    float ttl;
+    int radius;
+    int2 pos;
+};
+
+RWTexture2D<float4> dataMap1; // r = heightMap, g = suspended sediment, b = water level
+RWTexture2D<float4> fluxMap; // pipe model flux field | r = left, g = top, b = right, a = bottom
+RWTexture2D<float4> velocityField; // r, g = velocity field
+RWTexture2D<float4> waterDeltaMap; // r = delta1, g = delta2, b = sedimentDelta
+RWTexture2D<float4> sedimentDeltaMap; // r = delta1, g = delta2, b = sedimentDelta
+
+RWStructuredBuffer<WaterSourceStruct> waterSources;
+int numWaterSources;
+
+uint dimensionX;
+uint dimensionY;
+float simulationTimeStep = 0.01;
+float runTime = 0.0;
+float pipeCrossSection = 1.0;
+float lengthPipe = 1.0;
+float gravity = 9.81;
+float evaporationConst = 0.1;
+float minAlpha = 0.17;
+float sedimentTransportConst = 1.0;
+float dissolvingConst = 0.5;
+float depositionConst = 0.5;
+bool rain = false;
+float rainStrength;
+int rainRadius;
+
+float deltaHeight(uint2 id, int2 offset)
+{
+    return dataMap1[id.xy].r + waterDeltaMap[id.xy].r - dataMap1[id.xy + offset].r - waterDeltaMap[id.xy + offset].r;
+}
+
+bool createCircle(uint2 uv, WaterSourceStruct waterSource) {
+    int dist = distance((int2)uv, waterSource.pos);
+    dist = abs(dist);
+    return dist <= waterSource.radius;
+}
+
+bool createRainCircle(uint2 uv, int2 pos) {
+    int dist = distance((int2)uv, pos);
+    dist = abs(dist);
+    return dist <= rainRadius;
+}
+
+float GetSteepness(uint2 id)
+{
+    float dx = dataMap1[uint2(id.x + 1, id.y)].r - dataMap1[id.xy].r;
+    float dy = dataMap1[uint2(id.x, id.y + 1)].r - dataMap1[id.xy].r;
+
+    return sqrt(dx * dx + dy * dy);
+}
+
+float3 GetHeightMapNormal(uint2 id)
+{
+    if (id.x > 0 && id.x < dimensionX - 1 && id.y > 0 && id.y < dimensionY - 1)
+    {
+        float3 normal = float3(2.0 * (dataMap1[int2(id.x + 1, id.y)].r - dataMap1[int2(id.x - 1, id.y)].r), 2.0 * (dataMap1[int2(id.x, id.y - 1)].r - dataMap1[int2(id.x, id.y + 1)].r), -4.0);
+        return normalize(normal);
+    }
+
+    return float3(0, 0, 1);
+}
+
+float boxBlur(uint3 id)
+{
+    float blurSum = 0;
+    float num = 0;
+
+    for (int xOffset = -3; xOffset <= 3; xOffset++)
+    {
+        for (int yOffset = -3; yOffset <= 3; yOffset++)
+        {
+            if((int)id.x + xOffset >= 0 && id.x + xOffset < dimensionX && (int)id.y + yOffset >= 0 && id.y + yOffset < dimensionY)
+            {
+                blurSum += dataMap1[int2(id.x + xOffset, id.y + yOffset)].r;
+                num++;
+            }
+        }
+    }
+
+    return  blurSum /= num;
+}
+
+float2 hash21(float p)
+{
+    float3 p3 = frac(float3(p, p, p) * float3(.1031, .1030, .0973));
+    p3 += dot(p3, p3.yzx + 33.33);
+    return frac((p3.xx+p3.yz)*p3.zy);
+}
 
 [numthreads(8,8,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+void Init (uint3 id : SV_DispatchThreadID)
 {
-    if (id.x < 1000 && id.x > 600 && id.y < 1000 && id.y > 600)
+    dataMap1[id.xy] = float4(boxBlur(id), 0, 0, 1);
+    waterDeltaMap[id.xy] = float4(0, 0, 0, 0);
+    velocityField[id.xy] = float4(0, 0, 0, 0);
+    fluxMap[id.xy] = float4(0, 0, 0, 0);
+}
+
+[numthreads(8,8,1)]
+void WaterInc (uint3 id : SV_DispatchThreadID)
+{
+    float waterDelta1 = dataMap1[id.xy].b;
+
+    // rain
+    if (rain)
     {
-        float f = 0.5 * sin(id.x * 0.01 + id.y * 0.01 + _Time.y) + 0.5;
-        heightMap[id.xy] = float4(f, f, f, 1);
-    }    
+        float2 pos = hash21(((id.x / dimensionX) * (id.y / dimensionY) * 0.1) + runTime * 500 + 50);
+        int2 posInt = int2(pos.x * dimensionX, pos.y * dimensionY);
+        if (createRainCircle(id.xy, posInt))
+        {
+            waterDelta1 += simulationTimeStep * rainStrength;
+        }
+    }
+
+    // water sources
+    for (int i = 0; i < numWaterSources; i++)
+    {
+        if (waterSources[i].ttl > runTime && createCircle(id.xy, waterSources[i]))
+        {
+            waterDelta1 += simulationTimeStep * waterSources[i].strength;
+        }
+    }
+
+    waterDeltaMap[id.xy] = float4(waterDelta1, waterDeltaMap[id.xy].gba);
+}
+
+// outflow from cell (x, y) to neighbours
+[numthreads(8,8,1)]
+void UpdateFluxMap (uint3 id : SV_DispatchThreadID)
+{
+    float fluxL = 0;
+    float fluxR = 0;
+    float fluxT = 0;
+    float fluxB = 0;
+    
+    if (id.x > 0)
+    {
+        fluxL = max(0.0, fluxMap[id.xy].r + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(-1, 0)) / lengthPipe));
+    }
+    
+    if (id.x < dimensionX - 1)
+    {
+        fluxR = max(0.0, fluxMap[id.xy].b + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(1, 0)) / lengthPipe));
+    }
+    
+    if (id.y < dimensionY - 1)
+    {
+        fluxT = max(0.0, fluxMap[id.xy].g + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(0, 1)) / lengthPipe));
+    }
+     
+    if (id.y > 0)
+    {
+        fluxB = max(0.0, fluxMap[id.xy].a + simulationTimeStep * pipeCrossSection * (gravity * deltaHeight(id.xy, int2(0, -1)) / lengthPipe));
+    }
+    
+    float k = min(1.0, (waterDeltaMap[id.xy].r * lengthPipe) / ((fluxL + fluxR + fluxB + fluxT) * simulationTimeStep));
+    k = max(k, 0.0);
+    fluxMap[id.xy] = k * float4(fluxL, fluxT, fluxR, fluxB);
+}
+
+[numthreads(8,8,1)]
+void UpdateWaterHeight (uint3 id : SV_DispatchThreadID)
+{
+    // inflow flux from neighbours to cell (x, y)
+    float flowInR = 0;
+    if (id.x < dimensionX - 1)
+    {
+        flowInR = fluxMap[id.xy + int2(1, 0)].r;
+    }
+
+    float flowInL = 0;
+    if (id.x > 0)
+    {
+        flowInL = fluxMap[id.xy + int2(-1, 0)].b;
+    }
+
+    float flowInT = 0;
+    if (id.y < dimensionY - 1)
+    {
+        flowInT = fluxMap[id.xy + int2(0, 1)].a;
+    }
+
+    float flowInB = 0;
+    if (id.y > 0 )
+    {
+        flowInB = fluxMap[id.xy + int2(0, -1)].g;
+    }
+
+    float flowIn = flowInR + flowInB + flowInL + flowInT;
+    float flowOut = fluxMap[id.xy].r + fluxMap[id.xy].g + fluxMap[id.xy].b + fluxMap[id.xy].a;
+    
+    float deltaVolume = simulationTimeStep * (flowIn - flowOut);
+    
+    float waterDelta2 = waterDeltaMap[id.xy].r + deltaVolume / lengthPipe;
+    
+    waterDeltaMap[id.xy] = float4(waterDeltaMap[id.xy].r, waterDelta2, waterDeltaMap[id.xy].ba);
+}
+
+[numthreads(8,8,1)]
+void UpdateVelocityField (uint3 id : SV_DispatchThreadID)
+{
+    float flowInR = 0;
+    if (id.x < dimensionX - 1)
+    {
+        flowInR = fluxMap[id.xy + int2(1, 0)].r;
+    }
+
+    float flowInL = 0;
+    if (id.x > 0)
+    {
+        flowInL = fluxMap[id.xy + int2(-1, 0)].b;
+    }
+
+    float flowInT = 0;
+    if (id.y < dimensionY - 1)
+    {
+        flowInT = fluxMap[id.xy + int2(0, 1)].a;
+    }
+
+    float flowInB = 0;
+    if (id.y > 0)
+    {
+        flowInB = fluxMap[id.xy + int2(0, -1)].g;
+    }
+    
+    // Velocity field
+    float averageWaterDelta = (waterDeltaMap[id.xy].r + waterDeltaMap[id.xy].g) / 2.0;
+    float deltaFlowX = (flowInL - fluxMap[id.xy].r + fluxMap[id.xy].b - flowInR) / 2.0;
+    float deltaFlowY = (flowInT - fluxMap[id.xy].g + fluxMap[id.xy].a - flowInB) / 2.0;
+
+    if (averageWaterDelta == 0.0)
+    {
+        velocityField[id.xy] =  float4(0, 0, 0, velocityField[id.xy].a);
+    }
+    else
+    {
+        velocityField[id.xy] = float4(deltaFlowX, deltaFlowY, 0, velocityField[id.xy].a);
+    }
+}
+
+[numthreads(8,8,1)]
+void Erosion (uint3 id : SV_DispatchThreadID)
+{
+    float alpha = acos(GetHeightMapNormal(id.xy).y);
+    float velocity = sqrt(velocityField[id.xy].r * velocityField[id.xy].r + velocityField[id.xy].g * velocityField[id.xy].g);
+    alpha = max(alpha, minAlpha);
+    
+    float capacity = sedimentTransportConst * sin(alpha) * velocity;
+
+    float sedimentDelta;
+    float newHeight = dataMap1[id.xy].r;
+
+    if (capacity > dataMap1[id.xy].g)
+    {
+        // dissolve
+        float dissolve = dissolvingConst * simulationTimeStep;
+        dissolve = min(dissolve, capacity - dataMap1[id.xy].g);
+        
+        if (dataMap1[id.xy].r - dissolve >= 0.0)
+        {
+            newHeight = dataMap1[id.xy].r - dissolve;
+
+            sedimentDelta = dataMap1[id.xy].g + dissolve;
+            sedimentDeltaMap[id.xy] = float4(sedimentDeltaMap[id.xy].r + dissolve, sedimentDeltaMap[id.xy].g, sedimentDelta, 0);
+        }
+    }
+    else
+    {
+        // deposition
+        float deposit = depositionConst * simulationTimeStep;
+        deposit = min(deposit, dataMap1[id.xy].g - capacity);
+
+        if (dataMap1[id.xy].g - deposit >= 0.0)
+        {
+            newHeight = dataMap1[id.xy].r + deposit;
+
+            sedimentDelta = dataMap1[id.xy].g - deposit;
+            sedimentDeltaMap[id.xy] = float4(sedimentDeltaMap[id.xy].r, sedimentDeltaMap[id.xy].g + deposit, sedimentDelta, 0);
+        }
+    }
+
+    dataMap1[id.xy] = float4(newHeight, 0, dataMap1[id.xy].ba);
+}
+
+[numthreads(8,8,1)]
+void Transportation (uint3 id : SV_DispatchThreadID)
+{
+    float x = id.x - velocityField[id.xy].r * simulationTimeStep * dimensionX;
+    float y = id.y - velocityField[id.xy].g * simulationTimeStep * dimensionY;
+
+    x = max(x, 0);
+    x = min(x, dimensionX - 1);
+    y = max(y, 0);
+    y = min(y, dimensionY - 1);
+
+    int x1 = floor(x);
+    int x2 = ceil(x);
+    int y1 = ceil(y);
+    int y2 = ceil(y);    
+
+    float r1 = lerp(sedimentDeltaMap[int2(x1, y1)].b, sedimentDeltaMap[int2(x2, y1)].b, x - x1);
+    float r2 = lerp(sedimentDeltaMap[int2(x1, y2)].b, sedimentDeltaMap[int2(x2, y2)].b, x - x1);
+
+    float sed = lerp(r1, r2, y - y1);
+
+    dataMap1[id.xy] = float4(dataMap1[id.xy].r, sed, dataMap1[id.xy].ba);
+}
+
+[numthreads(8,8,1)]
+void Evaporation (uint3 id : SV_DispatchThreadID)
+{
+    float water = waterDeltaMap[id.xy].g * (1.0 - evaporationConst * simulationTimeStep);
+    if (water < 0.0001)
+    {
+        water = 0.0;
+    }
+
+    dataMap1[id.xy] = float4(dataMap1[id.xy].rg, water, 1);
 }

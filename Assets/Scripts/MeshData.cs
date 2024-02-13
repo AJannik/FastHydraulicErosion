@@ -10,7 +10,7 @@ public struct MeshData
     private int xSize, zSize;
     private float heightScale;
 
-    public MeshData(float[,] heightValues, float heightScale)
+    public MeshData(float[,] heightValues, float heightScale, float resolution)
     {
         xSize = heightValues.GetLength(0);
         zSize = heightValues.GetLength(1);
@@ -20,7 +20,7 @@ public struct MeshData
         triangles = new int[(xSize - 1) * (zSize - 1) * 6];
         this.heightScale = heightScale;
         
-        GenerateMeshData(heightValues);
+        GenerateMeshData(heightValues, resolution);
     }
     
     private void AddTriangle(int index, int a, int b, int c)
@@ -30,7 +30,7 @@ public struct MeshData
         triangles[index + 2] = c;
     }
     
-    private void GenerateMeshData(float[,] heightValues)
+    private void GenerateMeshData(float[,] heightValues, float resolution)
     {
         int vertexIndex = 0;
         int triangleIndex = 0;
@@ -39,7 +39,7 @@ public struct MeshData
         {
             for (int x = 0; x < xSize; x++)
             {
-                vertices[vertexIndex] = new Vector3(x, 0f, y); //heightValues[x, y] * heightScale
+                vertices[vertexIndex] = new Vector3(x, 0f, y) * resolution; //heightValues[x, y] * heightScale
                 uvs[vertexIndex] = new Vector2(1f - x / (float)xSize, 1f - y / (float)zSize);
                 
                 if (x < xSize - 1 && y < zSize - 1)
